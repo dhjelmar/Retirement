@@ -47,6 +47,34 @@ saving <- '
 3/30/22         0      0   50000 
 '
 
+
+##-----------------------------------------------------------------------------
+## SET PARAMETERS FOR MONTE CARLO SIMULATIONS
+
+## Set number of Monte Carlo Simulations
+mc_rep = 10
+## Set number of days for the simulation
+sim_time = 36
+## Set simulation start date to start with current month since my returns are monthly
+sim_start <- as.Date(format(Sys.Date(), "%Y-%m-01"))
+## uncomment following to enter start date (use 1st of month if return and spending data are eom)
+## sim_start <- as.Date('2022-01-01', %Y-%m-%d)
+## Create sequence of dates at ends of months for simulation 
+## (+1 on sim_time is so start with initial value)
+Date <- seq(as.Date(sim_start), length=sim_time+1, by="1 month") - 1
+
+## Define starting value and weights for each asset and total value
+value0 <- data.frame(invest = 10000,
+                     ira    = 20000,
+                     roth   = 30000)
+tvalue0 <- sum(value0)
+weights <- c(value0[[1]]/tvalue0,
+             value0[[2]]/tvalue0,
+             value0[[3]]/tvalue0)
+
+print(weights)
+
+
 ##-----------------------------------------------------------------------------
 ## READ IN DATA FOR EACH ASSET
 
@@ -57,9 +85,6 @@ saving <- as_tibble(readall(saving))
 history$Date  <- as.Date(history$Date, "%m/%d/%y")
 spending$Date <- as.Date(spending$Date, "%m/%d/%y")
 saving$Date   <- as.Date(saving$Date, "%m/%d/%y")
-increment <- (max(history$Date) - min(history$Date)) / nrow(history)
-                                        # alternately, I could grab the most common increment
-                                        # increment <- mode(diff(history$Date))
 return <- history[2:ncol(history)]
 
 ## following commented out because reading rather than calculating returns
@@ -88,31 +113,6 @@ print(L)
 
 
 ##-----------------------------------------------------------------------------
-## SET PARAMETERS FOR MONTE CARLO SIMULATIONS
-
-## Set number of Monte Carlo Simulations
-mc_rep = 10
-## Set number of days for the simulation
-sim_time = 36
-## Set simulation start date to start with current month since my returns are monthly
-sim_start <- as.Date(format(Sys.Date(), "%Y-%m-01"))
-## uncomment following to enter start date (use 1st of month if return and spending data are eom)
-## sim_start <- as.Date('2022-01-01', %Y-%m-%d)
-## Create sequence of dates at ends of months for simulation 
-## (+1 on sim_time is so start with initial value)
-## could instead use 'increment' to make sequence, but then the spending and saving dates would be off
-Date <- seq(as.Date(sim_start), length=sim_time+1, by="1 month") - 1
-
-## Starting value for each asset
-value0 <- data.frame(invest = 10000,
-                     ira    = 20000,
-                     roth   = 30000)
-weights <- c(value0[[1]]/sum(value0),
-             value0[[2]]/sum(value0),
-             value0[[3]]/sum(value0))
-print(weights)
-
-##-----------------------------------------------------------------------------
 ## modify saving and spending dataframes to have 1st column have all dates in 'Date'
 ## then need to modify mc loop to use new dataframes
 endcol <- ncol(saving)
@@ -139,7 +139,7 @@ for (i in 1:nrow(spending)) {
 ## initialize variables
 twr_m <- matrix(0, sim_time, mc_rep) # row for each sim date; col for each mc sim
 totalvalue <- as_tibble(data.frame(matrix(0, sim_time+1, mc_rep)))
-totalvalue[1,] <- sum(value0)
+totalvalue[1,] <- tvalue0
 value <- value0
 
 ## Extend means vector to a matrix
