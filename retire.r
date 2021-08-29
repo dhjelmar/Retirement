@@ -7,7 +7,7 @@ source('/home/dlhjel/GitHub_repos/R-setup/setup.r')
 ## DATA FOR EACH ASSET
 
 ## Determine mean for each asset and covariance matrix
-returns <- '
+return <- '
     Date    invest    ira   roth
 1/31/17       0.01   0.02   0.03
 2/28/17       0.02   0.03   0.05
@@ -78,14 +78,19 @@ print(weights)
 ##-----------------------------------------------------------------------------
 ## READ IN DATA FOR EACH ASSET
 
-history <- as_tibble(readall(returns))
-spending <- as_tibble(readall(spending))
-saving <- as_tibble(readall(saving))
+return_in   <- as_tibble(readall(return))
+spending_in <- as_tibble(readall(spending))
+saving_in   <- as_tibble(readall(saving))
 
-history$Date  <- as.Date(history$Date, "%m/%d/%y")
-spending$Date <- as.Date(spending$Date, "%m/%d/%y")
-saving$Date   <- as.Date(saving$Date, "%m/%d/%y")
-return <- history[2:ncol(history)]
+## convert date field to date format
+return_in$Date <- as.Date(return_in$Date, "%m/%d/%y")
+spending_in$Date <- as.Date(spending_in$Date, "%m/%d/%y")
+saving_in$Date   <- as.Date(saving_in$Date, "%m/%d/%y")
+naccts <- ncol(return_in) - 1
+
+## convert return columns as matrix for efficiency later
+returnm <- as.matrix(return_in[2:ncol(return_in)])
+
 
 ## following commented out because reading rather than calculating returns
 ## # This function returns the first differences of a t x q df of data
@@ -98,11 +103,11 @@ return <- history[2:ncol(history)]
 ## return <- returns(price)
 
 ## calculate mean return for each asset
-means <- colMeans(return)
+means <- colMeans(returnm)
 
 ## Get the Variance Covariance Matrix of asset returns
-pairsdf(return)
-coVarMat <- cov(return)
+pairsdf(returnm)
+coVarMat <- cov(returnm)
 print(coVarMat)
 
 ## Lower Triangular Matrix from Choleski Factorization, L where L * t(L) = coVarMat
@@ -115,36 +120,44 @@ print(L)
 ##-----------------------------------------------------------------------------
 ## modify saving and spending dataframes to have 1st column have all dates in 'Date'
 ## then need to modify mc loop to use new dataframes
-endcol <- ncol(saving)
+endcol <- ncol(saving_in)
 savingdf <- as_tibble(data.frame(matrix(0,    # Create data frame of zeros
                         nrow = length(Date),
                         ncol = endcol)))
-names(savingdf) <- names(saving)
+names(savingdf) <- names(saving_in)
 savingdf$Date <- Date
 spendingdf <- savingdf # copy blank saving dataframe to spending dataframe
 ## add each user specified entry to savingdf
-for (i in 1:nrow(saving)) {
-  irow <- birk::which.closest(Date, saving$Date[i])
-  savingdf[irow, 2:endcol] <- saving[i, 2:endcol]
+for (i in 1:nrow(saving_in)) {
+  irow <- birk::which.closest(Date, saving_in$Date[i])
+  savingdf[irow, 2:endcol] <- saving_in[i, 2:endcol]
   }
 ## add each user specified entry to savingdf
-for (i in 1:nrow(spending)) {
-  irow <- birk::which.closest(Date, spending$Date[i])
-  spendingdf[irow, 2:endcol] <- spending[i, 2:endcol]
+for (i in 1:nrow(spending_in)) {
+  irow <- birk::which.closest(Date, spending_in$Date[i])
+  spendingdf[irow, 2:endcol] <- spending_in[i, 2:endcol]
 }
 
 ##-----------------------------------------------------------------------------
 ## START MONTE CARLO SIMULATION
 
+## SPEEDUP ATTEMPT
+## convert dataframes to matrices
+spendingm <- as.matrix(spendingdf[2:naccts])
+savingm   <- as.matrix(savingdf[2:naccts])
+
 ## initialize variables
 twr_m <- matrix(0, sim_time, mc_rep) # row for each sim date; col for each mc sim
-totalvalue <- as_tibble(data.frame(matrix(0, sim_time+1, mc_rep)))
-totalvalue[1,] <- tvalue0
-value <- value0
-
+## totalvalue <- as_tibble(data.frame(matrix(0, sim_time+1, mc_rep)))
+totalvaluem <- matrix(0, sim_time+1, mc_rep)
+totalvaluem[1,] <- tvalue0
+valuem <- returnm
+valuem[,] <- 0
+valuem[1,] <- as.matrix(value0)
+    
 ## Extend means vector to a matrix
 ## one row for each account (or investment column) repeated in columns for each simulation
-means_matrix = matrix(rep(means, sim_time), nrow = ncol(return))
+means_matrix = matrix(rep(means, sim_time), nrow = ncol(returnm))
 
 ## set seed if want to repeat exactly
 set.seed(200)
@@ -154,7 +167,7 @@ for (i in 1:mc_rep) {
     cat('simulation', i, '\n')
     
     ## obtain random z values for each account (rows) for each date increment (columns)
-    Z <- matrix( rnorm( ncol(return) * sim_time ), ncol = sim_time)
+    Z <- matrix( rnorm( ncol(returnm) * sim_time ), ncol = sim_time)
 
     ## simulate returns for each increment forward in time (assumed same as whatever data was)
     sim_return <- means_matrix + L %*% Z
@@ -174,7 +187,8 @@ for (i in 1:mc_rep) {
         ##                        invest,    ira,   roth
         ## spent <- value[j,] + c(- 1000,      0,     0)
         ## spent <- value[j,] + monthly - spendingdf[j+1, 2:ncol(spendingdf)]
-        spent <- monthly_spending + spendingdf[j+1, 2:ncol(spendingdf)]
+        ## spent <- monthly_spending + spendingdf[j+1, 2:ncol(spendingdf)]
+        spent <- monthly_spending + spendingm[j+1,]
       
         ## update value from reduced starting value and simulated return
         ## growth <- spent + t(sim_return)[j,] * spent
@@ -184,11 +198,11 @@ for (i in 1:mc_rep) {
         ##                           invest,    ira,    roth
         ## value[j+1,] <- growth + c(- 1000,      0,     0)
         ## value[j+1,] <- growth + savingdf[j+1, 2:ncol(spendingdf)]
-        added <- monthly_saving + savingdf[j+1, 2:ncol(spendingdf)]
+        added <- monthly_saving + savingm[j+1,]
         
         ## total value for simulation i
         value[j+1,] <- value[j,] - spent + growth + added
-        totalvalue[j+1, i] <- sum(value[j+1,])
+        totalvaluem[j+1, i] <- sum(value[j+1,])
         
         ## recalculate weights after adjustments
         weights <- as.numeric(value[j+1,] / sum(value[j+1,]))
@@ -253,12 +267,12 @@ legend('topleft',
 ## PLOT VALUE
 ## ----------
 ## first establish plot area
-ylim <- range(totalvalue)
-plot(Date, t(totalvalue[1]), type='n',
+ylim <- range(totalvaluem)
+plot(Date, t(totalvaluem[1]), type='n',
      ylab='Simulation Value',
      ylim=ylim)
-for (i in 2:ncol(totalvalue)) {
-    lines(Date, t(totalvalue[i]), type='l')
+for (i in 2:ncol(totalvaluem)) {
+    lines(Date, t(totalvaluem[i]), type='l')
 }
 
 ## Construct Confidential Intervals for returns
@@ -270,7 +284,7 @@ ci <- function(df, conf) {
     apply(df, 1, function(x) quantile(x, conf))
 }
 ## create dataframe of confidence intervals
-df <- totalvalue
+df <- totalvaluem
 cis <- as_tibble( data.frame(Date,
                              conf_99.9_upper_percent = ci(df, 0.999),
                              conf_99.0_upper_percent = ci(df, 0.99),
@@ -299,7 +313,7 @@ cum_final_stats <- data.frame(mean   = mean(cum_final),
                               sd     = sd(cum_final))
 print(cum_final_stats)
 
-final <- cbind(savingdf, spendingdf[2:ncol(spendingdf)], ci(twr_df, 0.001), ci(totalvalue, 0.001))
+final <- cbind(savingdf, spendingdf[2:ncol(spendingdf)], ci(twr_df, 0.001), ci(totalvaluem, 0.001))
 cat('                   Saving            Spending      TWR (99.9% LB CI)   Value (99.9% LB CI)\n',
     '             ------------------ ------------------ ------------------  -------------------\n')
 print(final)
