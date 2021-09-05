@@ -121,21 +121,26 @@ print(L)
 ## modify saving and spending dataframes to have 1st column have all dates in 'Date'
 ## then need to modify mc loop to use new dataframes
 endcol <- ncol(saving_in)
-savingdf <- as_tibble(data.frame(matrix(0,    # Create data frame of zeros
+saving <- as_tibble(data.frame(matrix(0,    # Create data frame of zeros
                         nrow = length(Date),
                         ncol = endcol)))
-names(savingdf) <- names(saving_in)
-savingdf$Date <- Date
-spendingdf <- savingdf # copy blank saving dataframe to spending dataframe
-## add each user specified entry to savingdf
+names(saving) <- names(saving_in)
+saving$Date <- Date
+spending <- saving # copy blank saving dataframe to spending dataframe
+## add each user specified entry to saving
 for (i in 1:nrow(saving_in)) {
   irow <- birk::which.closest(Date, saving_in$Date[i])
-  savingdf[irow, 2:endcol] <- saving_in[i, 2:endcol]
-  }
-## add each user specified entry to savingdf
+  saving[irow, 2:endcol] <- saving_in[i, 2:endcol]
+}
+## add each user specified entry to saving
 for (i in 1:nrow(spending_in)) {
   irow <- birk::which.closest(Date, spending_in$Date[i])
-  spendingdf[irow, 2:endcol] <- spending_in[i, 2:endcol]
+  spending[irow, 2:endcol] <- spending_in[i, 2:endcol]
+}
+## add monthly saving and spending
+for (i in 1:nrow(saving)) {
+    saving[i, 2:endcol]   <- saving[i, 2:endcol]   + monthly_saving
+    spending[i, 2:endcol] <- spending[i, 2:endcol] + monthly_spending
 }
 
 ##-----------------------------------------------------------------------------
@@ -143,8 +148,8 @@ for (i in 1:nrow(spending_in)) {
 
 ## SPEEDUP ATTEMPT
 ## convert dataframes to matrices
-spendingm <- as.matrix(spendingdf[2:naccts])
-savingm   <- as.matrix(savingdf[2:naccts])
+savingm   <- as.matrix(saving[2:(naccts+1)])
+spendingm <- as.matrix(spending[2:(naccts+1)])
 
 ## initialize variables
 twr_m <- matrix(0, sim_time, mc_rep) # row for each sim date; col for each mc sim
@@ -186,9 +191,9 @@ for (i in 1:mc_rep) {
         ## reduce value to reflect spending at start of time increment
         ##                        invest,    ira,   roth
         ## spent <- value[j,] + c(- 1000,      0,     0)
-        ## spent <- value[j,] + monthly - spendingdf[j+1, 2:ncol(spendingdf)]
-        ## spent <- monthly_spending + spendingdf[j+1, 2:ncol(spendingdf)]
-        spent <- monthly_spending + spendingm[j+1,]
+        ## spent <- value[j,] + monthly - spending[j+1, 2:ncol(spending)]
+        ## spent <- monthly_spending + spending[j+1, 2:ncol(spending)]
+        spent <- spendingm[j+1,]
       
         ## update value from reduced starting value and simulated return
         ## growth <- spent + t(sim_return)[j,] * spent
@@ -197,8 +202,8 @@ for (i in 1:mc_rep) {
         ## increase value to reflect additions at end of time increment
         ##                           invest,    ira,    roth
         ## value[j+1,] <- growth + c(- 1000,      0,     0)
-        ## value[j+1,] <- growth + savingdf[j+1, 2:ncol(spendingdf)]
-        added <- monthly_saving + savingm[j+1,]
+        ## value[j+1,] <- growth + saving[j+1, 2:ncol(spending)]
+        added <- savingm[j+1,]
         
         ## total value for simulation i
         value[j+1,] <- value[j,] - spent + growth + added
@@ -313,7 +318,7 @@ cum_final_stats <- data.frame(mean   = mean(cum_final),
                               sd     = sd(cum_final))
 print(cum_final_stats)
 
-final <- cbind(savingdf, spendingdf[2:ncol(spendingdf)], ci(twr_df, 0.001), ci(totalvaluem, 0.001))
+final <- cbind(saving, spending[2:ncol(spending)], ci(twr_df, 0.001), ci(totalvaluem, 0.001))
 cat('                   Saving            Spending      TWR (99.9% LB CI)   Value (99.9% LB CI)\n',
     '             ------------------ ------------------ ------------------  -------------------\n')
 print(final)
