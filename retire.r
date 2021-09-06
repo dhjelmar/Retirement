@@ -53,15 +53,18 @@ saving <- '
 
 ## Set number of Monte Carlo Simulations
 mc_rep = 10
-## Set number of days for the simulation
-sim_time = 36
+## Set number of timesteps for the simulation
+ntimestep = 36
 ## Set simulation start date to start with current month since my returns are monthly
 sim_start <- as.Date(format(Sys.Date(), "%Y-%m-01"))
 ## uncomment following to enter start date (use 1st of month if return and spending data are eom)
 ## sim_start <- as.Date('2022-01-01', %Y-%m-%d)
 ## Create sequence of dates at ends of months for simulation 
-## (+1 on sim_time is so start with initial value)
-Date <- seq(as.Date(sim_start), length=sim_time+1, by="1 month") - 1
+## (+1 on ntimestep is so start with initial value)
+Date     <- seq(as.Date(sim_start), length=ntimestep+1, by="1 month") - 1
+## split off 1st date since mc will only iterate on future dates
+date0    <- Date[1]
+datesim  <- Date[2:length(Date)]
 
 ## Define starting value and weights for each asset and total value
 value0 <- data.frame(invest = 10000,
@@ -81,19 +84,17 @@ print(weights)
 return_in   <- as_tibble(readall(return))
 spending_in <- as_tibble(readall(spending))
 saving_in   <- as_tibble(readall(saving))
+naccts      <- ncol(return_in) - 1
 
 ## convert date field to date format
-return_in$Date <- as.Date(return_in$Date, "%m/%d/%y")
+return_in$Date   <- as.Date(return_in$Date, "%m/%d/%y")
 spending_in$Date <- as.Date(spending_in$Date, "%m/%d/%y")
 saving_in$Date   <- as.Date(saving_in$Date, "%m/%d/%y")
-naccts <- ncol(return_in) - 1
 
 ## convert return columns as matrix for efficiency later
 returnm <- as.matrix(return_in[2:ncol(return_in)])
 
-
 ## following commented out because reading rather than calculating returns
-## # This function returns the first differences of a t x q df of data
 ## returns = function(df){
 ##   rows  <- nrow(df)
 ##   return <- df[2:rows, ] / df[1:rows-1, ] - 1
@@ -107,34 +108,34 @@ means <- colMeans(returnm)
 
 ## Get the Variance Covariance Matrix of asset returns
 pairsdf(returnm)
-coVarMat <- cov(returnm)
-print(coVarMat)
+covarm <- cov(returnm)
+print(covarm)
 
-## Lower Triangular Matrix from Choleski Factorization, L where L * t(L) = coVarMat
-## check with as.matrix(L) %*% as.matrix(t(L)) = coVarMat
+## Lower Triangular Matrix from Choleski Factorization, L where L * t(L) = covarm
+## check with as.matrix(L) %*% as.matrix(t(L)) = covarm
 ## needed for R_i = mean_i + L_ij * Z_ji
-L = t( chol(coVarMat) )
+L = t( chol(covarm) )
 print(L)
 
 
 ##-----------------------------------------------------------------------------
-## modify saving and spending dataframes to have 1st column have all dates in 'Date'
+## modify saving and spending dataframes to have 1st column have all dates in 'datesim'
 ## then need to modify mc loop to use new dataframes
 endcol <- ncol(saving_in)
 saving <- as_tibble(data.frame(matrix(0,    # Create data frame of zeros
-                        nrow = length(Date),
+                        nrow = length(datesim),
                         ncol = endcol)))
 names(saving) <- names(saving_in)
-saving$Date <- Date
+saving$Date <- datesim
 spending <- saving # copy blank saving dataframe to spending dataframe
 ## add each user specified entry to saving
 for (i in 1:nrow(saving_in)) {
-  irow <- birk::which.closest(Date, saving_in$Date[i])
+  irow <- birk::which.closest(datesim, saving_in$Date[i])
   saving[irow, 2:endcol] <- saving_in[i, 2:endcol]
 }
 ## add each user specified entry to saving
 for (i in 1:nrow(spending_in)) {
-  irow <- birk::which.closest(Date, spending_in$Date[i])
+  irow <- birk::which.closest(datesim, spending_in$Date[i])
   spending[irow, 2:endcol] <- spending_in[i, 2:endcol]
 }
 ## add monthly saving and spending
@@ -152,17 +153,17 @@ savingm   <- as.matrix(saving[2:(naccts+1)])
 spendingm <- as.matrix(spending[2:(naccts+1)])
 
 ## initialize variables
-twr_m <- matrix(0, sim_time, mc_rep) # row for each sim date; col for each mc sim
-## totalvalue <- as_tibble(data.frame(matrix(0, sim_time+1, mc_rep)))
-totalvaluem <- matrix(0, sim_time+1, mc_rep)
-totalvaluem[1,] <- tvalue0
-valuem <- returnm
-valuem[,] <- 0
-valuem[1,] <- as.matrix(value0)
-    
+## twr and totalvalue matrices
+## row for each timestep
+## column for each mc sim
+twrm        <- matrix(0, ntimestep, mc_rep)
+totalvaluem <- twrm
+## same as above for value but with 2nd dimension for each account 
+valuem     <- array(0, dim=c(ntimestep, naccts, mc_rep))
+
 ## Extend means vector to a matrix
-## one row for each account (or investment column) repeated in columns for each simulation
-means_matrix = matrix(rep(means, sim_time), nrow = ncol(returnm))
+## one row for each account (or investment column) repeated in columns for each timestep
+meansm = matrix(rep(means, ntimestep), nrow = ncol(returnm))
 
 ## set seed if want to repeat exactly
 set.seed(200)
@@ -170,54 +171,77 @@ for (i in 1:mc_rep) {
     ## do following for each monte carlo simulation
 
     cat('simulation', i, '\n')
+
+    ## start with initial values for each account
+    valueold   <- value0
     
     ## obtain random z values for each account (rows) for each date increment (columns)
-    Z <- matrix( rnorm( ncol(returnm) * sim_time ), ncol = sim_time)
+    Z <- matrix( rnorm( naccts * ntimestep ), ncol = ntimestep)
 
     ## simulate returns for each increment forward in time (assumed same as whatever data was)
-    sim_return <- means_matrix + L %*% Z
+    sim_return <- meansm + L %*% Z
     ## to view as a dataframe
     ## dfsim <- as_tibble(as.data.frame(t(sim_return)))
 
     ## Calculate vector of portfolio returns
-    twr_i <- cumprod( weights %*% sim_return + 1 ) # sim_time entries
+    twr_i <- cumprod( weights %*% sim_return + 1 ) -1 # ntimestep entries
     
     ## Add it to the monte-carlo matrix
-    twr_m[,i] <- twr_i;
+    twrm[,i] <- twr_i;
     
-    for (j in 1:sim_time) {
+    for (j in 1:ntimestep) {
         ## for each time increment
         
         ## reduce value to reflect spending at start of time increment
-        ##                        invest,    ira,   roth
-        ## spent <- value[j,] + c(- 1000,      0,     0)
-        ## spent <- value[j,] + monthly - spending[j+1, 2:ncol(spending)]
-        ## spent <- monthly_spending + spending[j+1, 2:ncol(spending)]
-        spent <- spendingm[j+1,]
+        spent <- spendingm[j,]
       
         ## update value from reduced starting value and simulated return
         ## growth <- spent + t(sim_return)[j,] * spent
-        growth <- t(sim_return)[j,] * (value[j,] - spent)
+        growth <- t(sim_return)[j,] * (valueold - spent)
         
         ## increase value to reflect additions at end of time increment
-        ##                           invest,    ira,    roth
-        ## value[j+1,] <- growth + c(- 1000,      0,     0)
-        ## value[j+1,] <- growth + saving[j+1, 2:ncol(spending)]
-        added <- savingm[j+1,]
+        added <- savingm[j,]
         
-        ## total value for simulation i
-        value[j+1,] <- value[j,] - spent + growth + added
-        totalvaluem[j+1, i] <- sum(value[j+1,])
+        ## value for simulation i
+        valuem[j,,i] <- as.numeric(valueold - spent + growth + added)
+        ## value for each account
+        valueold     <- valuem[j,,i]
+        ## total value for all accounts combined
+        totalvaluem[j,i] <- sum(valueold)
         
         ## recalculate weights after adjustments
-        weights <- as.numeric(value[j+1,] / sum(value[j+1,]))
+        weights <- as.numeric(valueold / sum(valueold))
     }
 }
-## put results into dataframe
-twr_df <- as_tibble(as.data.frame(twr_m))
+
+##-----------------------------------------------------------------------------
+## GATHER RESULTS
+
+## add row for starting 0s for saving and spending dfs
+zeros <- rep(0, naccts)
+zeros <- data.frame(Date[1], t(zeros))
+names(zeros) <- names(saving)
+saving   <- as_tibble(rbind(zeros, saving))
+spending <- as_tibble(rbind(zeros, spending))
+
+## put twrm results into dataframe
+twr <- as.data.frame(twrm)
 ## add row for starting value
-ones <- rep(1, ncol(twr_df))
-twr_df <- rbind(ones, twr_df)
+ones <- rep(0, ncol(twr))
+twr <- rbind(ones, twr)
+## ## add date
+## twr <- as_tibble(cbind(Date=Date, twr))
+
+## put total value results into dataframe
+totalvalue <- as.data.frame(totalvaluem)
+totalvalue <- rbind(sum(value0), totalvalue)
+## totalvalue <- as_tibble(cbind(Date=Date, totalvalue))
+
+## valuem is size ntimestep x naccts x mc_rep
+## e.g., valuem[1,,2] returns 1st timestep results for all account values for mc_rep=2
+##       valuem[,,1]  returns all timestep results for all account values for mc_rep=1
+##       valuem[,1,]  returns all timestep results for 1st account for all mc_reps
+
 
 
 ##-----------------------------------------------------------------------------
@@ -229,12 +253,12 @@ plotspace(2,1)
 ## PLOT TWR
 ## --------
 ## first establish plot area
-ylim <- range(twr_df)
-plot(Date, twr_df$V1, type='n',
+ylim <- range(twr)
+plot(Date, twr$V1, type='n',
      ylab='Simulation Returns',
      ylim=ylim)
-for (i in 2:ncol(twr_df)) {
-    lines(Date, t(twr_df[i]), type='l')
+for (i in 2:ncol(twr)) {
+    lines(Date, t(twr[i]), type='l')
 }
 
 ## Construct Confidential Intervals for returns
@@ -246,7 +270,7 @@ ci <- function(df, conf) {
     apply(df, 1, function(x) quantile(x, conf))
 }
 ## create dataframe of confidence intervals
-df <- twr_df
+df <- twr
 cis <- as_tibble( data.frame(Date,
                              conf_99.9_upper_percent = ci(df, 0.999),
                              conf_99.0_upper_percent = ci(df, 0.99),
@@ -272,12 +296,12 @@ legend('topleft',
 ## PLOT VALUE
 ## ----------
 ## first establish plot area
-ylim <- range(totalvaluem)
-plot(Date, t(totalvaluem[1]), type='n',
+ylim <- range(totalvalue)
+plot(Date, totalvalue$V1, type='n',
      ylab='Simulation Value',
      ylim=ylim)
-for (i in 2:ncol(totalvaluem)) {
-    lines(Date, t(totalvaluem[i]), type='l')
+for (i in 2:ncol(totalvalue)) {
+    lines(Date, t(totalvalue[i]), type='l')
 }
 
 ## Construct Confidential Intervals for returns
@@ -289,7 +313,7 @@ ci <- function(df, conf) {
     apply(df, 1, function(x) quantile(x, conf))
 }
 ## create dataframe of confidence intervals
-df <- totalvaluem
+df <- totalvalue
 cis <- as_tibble( data.frame(Date,
                              conf_99.9_upper_percent = ci(df, 0.999),
                              conf_99.0_upper_percent = ci(df, 0.99),
@@ -312,14 +336,24 @@ legend('topleft',
 ##-----------------------------------------------------------------------------
 ## final results at end of simulation
 ## Porfolio Returns statistics at end of simulation
-cum_final <- as.numeric( twr_df[nrow(twr_df),] )
+cum_final <- as.numeric( twr[nrow(twr),] )
 cum_final_stats <- data.frame(mean   = mean(cum_final),
                               median = median(cum_final),
                               sd     = sd(cum_final))
 print(cum_final_stats)
 
-final <- cbind(saving, spending[2:ncol(spending)], ci(twr_df, 0.001), ci(totalvaluem, 0.001))
+final <- cbind(saving, spending[2:ncol(spending)], ci(twr, 0.001), ci(totalvalue, 0.001))
 cat('                   Saving            Spending      TWR (99.9% LB CI)   Value (99.9% LB CI)\n',
     '             ------------------ ------------------ ------------------  -------------------\n')
 print(final)
-ci(twr_df, 0.999)
+ci(twr, 0.999)
+
+
+## ## create dataframe of mean and upper/lower ci for each account
+## value <- data.frame(matrix(0,    # Create data frame of zeros
+##                            nrow = length(datesim),
+##                            ncol = mc_rep))
+## for (i in 1:naccts) {
+##     cat('account', i, '\n')
+##     value <- valuem[,i,]
+## }
