@@ -1,6 +1,48 @@
 ## https://israeldi.github.io/bookdown/_book/monte-carlo-simulation-of-stock-portfolio-in-r-matlab-and-python.html
 
 source('/home/dlhjel/GitHub_repos/R-setup/setup.r')
+path <- '/home/dlhjel/GitHub_repos/Retirement/'
+setwd(path)
+r_files <- list.files(paste(path,'modules',sep=""), pattern="*.[rR]$", full.names=TRUE)
+for (f in r_files) {
+  ## cat("f =",f,"\n")
+  source(f)
+}
+
+##-----------------------------------------------------------------------------
+## OBTAIN BENCHMARK HISTORICAL DATA
+## category       ETF  description
+## -------------  ---  ---------------
+## USL            SPY  S&P 500
+## USS            IWM  Russell 2000
+## International  EFA  MSCI EAFE (TRN)
+## Fixed          AGG  Bloomberg US Aggregate Bond
+## Cash           SHV FTSE 3-month treasury bill
+
+benchmark_xts <- adjusted_price(c('SPY', 'IWM', 'EFA', 'AGG', 'SHV'), from='1995-01-01')
+names(benchmark_xts) <- c('US_L', 'US_S', 'Inter', 'Fixed', 'Cash')
+## plot(benchmark_xts)
+benchmark_df <- as.data.frame(benchmark_xts)
+plotdfall(benchmark_df, xx = as.Date( rownames(benchmark_df) ))
+pairsdf(benchmark_df)
+pairsdf(na.omit(benchmark_df))
+
+## convert above into TWR
+nrows <- nrow(benchmark_xts)
+returnp1 <- benchmark_xts[2:nrows] / benchmark_xts[1:(nrows-1)]
+return   <- returnp1 - 1
+
+head(returnp1)
+head(return * 100)
+
+
+a <- head(benchmark_xts[2:nrows]) - 28
+b <- head(benchmark_xts[1:(nrows-1)]) - 28
+a/b
+
+dlh not sure why above does not work
+
+
 
 
 ##-----------------------------------------------------------------------------
