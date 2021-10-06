@@ -19,13 +19,17 @@ for (f in r_files) {
 ## Fixed          AGG  Bloomberg US Aggregate Bond
 ## Cash           SHV FTSE 3-month treasury bill
 
-benchmark_xts <- adjusted_price(c('SPY', 'IWM', 'EFA', 'AGG', 'SHV'), from='1995-01-01')
-names(benchmark_xts) <- c('US_L', 'US_S', 'Inter', 'Fixed', 'Cash')
-## plot(benchmark_xts)
-benchmark_df <- as.data.frame(benchmark_xts)
-plotdfall(benchmark_df, xx = as.Date( rownames(benchmark_df) ))
-pairsdf(benchmark_df)
-pairsdf(na.omit(benchmark_df))
+out <- equityget(c('SPY', 'IWM', 'EFA', 'AGG', 'SHV'), from='1995-01-01')
+closem     <- out$close
+benchmarkm <- out$twr
+colnames(closem) <- c('US_L', 'US_S', 'Inter', 'Fixed', 'Cash')
+colnames(benchmarkm) <- c('US_L', 'US_S', 'Inter', 'Fixed', 'Cash')
+## plot(benchmarkm)
+benchmarkdf <- as.data.frame(benchmarkm)
+pairsdf(benchmarkdf)
+pairsdf(na.omit(benchmarkdf))
+benchmarkdf$date <- as.Date( rownames(benchmarkdf) )
+plotdfall(benchmarkdf, 'date')
 
 ## convert above into TWR
 nrows <- nrow(benchmark_xts)
