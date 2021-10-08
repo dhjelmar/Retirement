@@ -42,9 +42,10 @@ equityget <- function(symbol, from, to=Sys.Date(), source='yahoo', period='days'
     ## merge adjusted prices for additional symbols, if any
     if (length(symbol) > 1) {
         for (i in 2:length(symbol)) {
+            asset <- get(symbol[i])
             if (period != 'days') {
                 ## convert OHLCV format data to some other period
-                asset <- xts::to.period(get(symbol[i]), period=period)
+                asset <- xts::to.period(asset, period=period)
             }
             closeprice <- merge(closeprice, asset[, colclose])
             adjprice   <- merge(adjprice  , asset[, coladj])
