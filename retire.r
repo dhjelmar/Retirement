@@ -20,11 +20,17 @@ for (f in r_files) {
 ## Cash           SHV FTSE 3-month treasury bill
 
 out <- equityget(c('SPY', 'IWM', 'EFA', 'AGG', 'SHV'), from='1995-01-01')
-closem     <- out$closem
-benchmarkm <- out$twr
-colnames(closem) <- c('US_L', 'US_S', 'Inter', 'Fixed', 'Cash')
-colnames(benchmarkm) <- c('US_L', 'US_S', 'Inter', 'Fixed', 'Cash')
-## plot(benchmarkm)
+close  <- out$close
+twr    <- out$twr
+colnames(close) <- c('US_L', 'US_S', 'Inter', 'Fixed', 'Cash')
+colnames(twr)  <- c('US_L', 'US_S', 'Inter', 'Fixed', 'Cash')
+## plot
+plotspace(1,2)
+plotxts(close)
+plotxts(twr)
+
+
+
 benchmarkdf <- as.data.frame(benchmarkm)
 pairsdf(benchmarkdf)
 pairsdf(na.omit(benchmarkdf))
