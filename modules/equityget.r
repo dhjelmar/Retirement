@@ -1,5 +1,7 @@
-equityget <- function(symbol, from, to=Sys.Date(), source='yahoo', period='daily') {
+equityget <- function(symbol, from, to=Sys.Date(), source='yahoo', period='days') {
     ## function returns a dataframe of adjusted prices
+    ## period = 'days' (default), 'weeks', 'months', 'quarters', or 'years' 
+
     ## e.g., adjusted_price(c("SPY","EFA", "IJS", "EEM","AGG"), from='2005-01-01')
     ##       adjusted_price(c("SPY","EFA", "IJS", "EEM","AGG"), from='2005-01-01')
 
@@ -22,35 +24,53 @@ equityget <- function(symbol, from, to=Sys.Date(), source='yahoo', period='daily
     ## can access using zoo::index()
     ## dates <- as.Date( zoo::index( get(symbols[1]) ) )
 
-    ## intersted in: prices which are the 4th column
-    ##               adjusted prices which are the last column of each xts symbol object
-    closeprice <- get(symbol[1])[,4]
-    ncols      <- ncol( get(symbol[1]) )
-    adjprice   <- get(symbol[1])[,ncols]
+    ## copy XTS OHLCV format data for 1st symbol to variable asset
+    asset <- get(symbol[1])
+    if (period != 'days') {
+        ## convert OHLCV format data to some other period
+        asset <- xts::to.period(asset, period=period)
+    }
+    
+    ## find column numbers with closing and adjusted prices
+    colclose <- which(grepl('Close',    names(asset)))
+    coladj   <- which(grepl('Adjusted', names(asset)))
+    
+    ## copy 1st asset information into XTS objects for closing and adjusted prices
+    closeprice <- asset[, colclose]
+    adjprice   <- asset[, coladj]
+    
     ## merge adjusted prices for additional symbols, if any
     if (length(symbol) > 1) {
         for (i in 2:length(symbol)) {
-            closeprice <- merge(closeprice, get(symbol[i])[,4])
-            adjprice   <- merge(adjprice  , get(symbol[i])[,ncols])
+            if (period != 'days') {
+                ## convert OHLCV format data to some other period
+                asset <- xts::to.period(get(symbol[i]), period=period)
+            }
+            closeprice <- merge(closeprice, asset[, colclose])
+            adjprice   <- merge(adjprice  , asset[, coladj])
         }
     }
 
     ## fix names and return
-    names(adjprice) <- symbol
-
-    ## adjust to monthly if requested
-    if (period != 'daily') {
-        closeprice <- xts::to.monthly(closeprice)
-        adjprice   <- xts::to.monthly(adjprice)
-    }
-
-    ## convert to matrix until maybe someday if I learn xts
-    closepricem <- as.matrix(closeprice)
-    adjpricem <- as.matrix(adjprice)
+    names(closeprice) <- symbol
+    names(adjprice)   <- symbol
     
-    ## calculate return (I have not figured out xts operations so converting to matrix)
-    nrows <- nrow(adjpricem)
-    twr <- adjpricem[2:nrows,] / adjpricem[1:(nrows-1),] - 1
+    ## calculate TWR
+    twr  <- adjprice / xts::lag.xts(adjprice, 1) - 1
+    ## remove 1st row since NA
+    twr <- twr[-1,]
     
-    return(list(close = closepricem, adjprice = adjpricem, twr=twr))
-    }
+    ## ## the following does the same with matrices
+    ## ## calculate return
+    ## ## convert to matrix until maybe someday if I learn xts
+    ## adjpricem <- as.matrix(adjprice)
+    ## nrows <- nrow(adjpricem)
+    ## twrm <- adjpricem[2:nrows,] / adjpricem[1:(nrows-1),] - 1
+    ## ## convert back to xts
+    ## ## twr <- xts::as.xts(twrm)
+    
+    return(list(close = closeprice, adjprice = adjprice, twr=twr))
+}
+
+## out <- equityget(c('SPY', 'IWM', 'EFA', 'AGG', 'SHV'), from='1995-01-01', period='years')
+## twr <- out$twr
