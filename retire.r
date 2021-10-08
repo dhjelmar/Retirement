@@ -20,7 +20,7 @@ for (f in r_files) {
 ## Cash           SHV FTSE 3-month treasury bill
 
 out <- equityget(c('SPY', 'IWM', 'EFA', 'AGG', 'SHV'), from='1995-01-01')
-closem     <- out$close
+closem     <- out$closem
 benchmarkm <- out$twr
 colnames(closem) <- c('US_L', 'US_S', 'Inter', 'Fixed', 'Cash')
 colnames(benchmarkm) <- c('US_L', 'US_S', 'Inter', 'Fixed', 'Cash')
@@ -29,7 +29,11 @@ benchmarkdf <- as.data.frame(benchmarkm)
 pairsdf(benchmarkdf)
 pairsdf(na.omit(benchmarkdf))
 benchmarkdf$date <- as.Date( rownames(benchmarkdf) )
-plotdfall(benchmarkdf, 'date')
+plotdfall(benchmarkdf, 'date', size=0.01, type='b')
+
+closedf <- as.data.frame(closem)
+closedf$date <- as.Date( rownames(closedf) )
+plotdfall(closedf, 'date', size=0.01, type='b')
 
 ## convert above into TWR
 nrows <- nrow(benchmark_xts)
