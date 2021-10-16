@@ -1,11 +1,76 @@
 plotxts <- function(xts, legendloc='topleft') {
-    ## plots every column in the XTS file vs. date and adds a legend
-    xts::plot.xts(xts)
+    ## plots every column in the XTS object vs. date and adds a legend
+    ylabel  <- deparse(substitute(xts))
+    xts::plot.xts(xts, ylab=ylabel)
     xts::addLegend(legendloc,
                    legend.names = names(xts), 
                    lty=1,
                    col=1:ncol(xts))
 }
+
+plotzoo <- function(zoo, legendloc='topleft') {
+    ## plots every column in the ZOO object vs. date and adds a legend
+    ## seems to work on zoo and xts objects
+    ylabel  <- deparse(substitute(zoo))
+    zoo::plot.zoo(zoo,
+                  ylab=ylabel,
+                  screens=1,
+                  lty=1,
+                  col=1:ncol(zoo))
+    legend(legendloc,
+           legend = names(zoo), 
+           lty    = 1,
+           col    = 1:ncol(zoo))
+}
+
+
+plotmat <- function(mat, xx=NULL, legendloc='topleft') {
+
+    ## work in progress
+
+    ## plot matrix vs. xx
+    ## strip out xx column if specified and part of mat
+    
+    ## Add argument axes=F to omit the axes
+    if (!is.null(xx)) {
+        xlabel <- deparse(substitute(xx))
+    } else {
+        xlabel <- 'Index'
+        xx     <- 1:nrow(mat)
+    }
+    if (xts::is.xts(mat) == TRUE | zoo::is.zoo(mat)) {
+        ## xts or zoo passed in rather than matrix
+        ## use dates for x-axis (override xx if specified)
+        xx     <- zoo::index(mat)
+        xlabel <- 'Date'
+        mat    <- as.matrix(mat)
+    } else if (is.data.frame(mat) == TRUE) {
+        ## dataframe passed in rather than matrix
+        if (!is.null(xx)) {
+            ## xx is specified so handle it
+            ncolxx <- which(grepl(xx, names(mat)))
+            if (length(ncolxx) > 0) {
+                ## xx is in mat so not need to remove it
+                xx     <- mat$xx
+                mat$xx <- NULL
+            }
+            xlabel <- deparse(substitute(xx))
+        }
+        mat    <- as.matrix(mat)
+    }
+    ylabel  <- deparse(substitute(mat))
+
+    graphics::matplot(x=xx, y=mat, type='l',
+                      xlab = xlabel,
+                      ylab = ylabel)
+    grid(col='grey70')
+    legend(legendloc,
+           legend = names(mat),
+           col    = 1:ncol(mat),
+           lty    = 1)
+
+}
+
 
 ## ## test that does not use any of my functions
 ## quantmod::getSymbols(c('SPY','IWM'),
