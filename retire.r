@@ -1,4 +1,4 @@
-## https://israeldi.github.io/bookdown/_book/monte-carlo-simulation-of-stock-portfolio-in-r-matlab-and-python.html
+f## https://israeldi.github.io/bookdown/_book/monte-carlo-simulation-of-stock-portfolio-in-r-matlab-and-python.html
 
 source('/home/dlhjel/GitHub_repos/R-setup/setup.r')
 path <- '/home/dlhjel/GitHub_repos/Retirement/'
@@ -8,6 +8,16 @@ for (f in r_files) {
   ## cat("f =",f,"\n")
   source(f)
 }
+
+
+##-----------------------------------------------------------------------------
+## SET PARAMETERS FOR MONTE CARLO SIMULATIONS
+## Set number of Monte Carlo Simulations
+mc_rep = 10
+## Set simulation start date to start with current month since my returns are monthly
+sim_start <- as.Date(format(Sys.Date(), "%Y-%m-01"))
+sim_end   <- as.Date('2021-12-31')
+
 
 ##-----------------------------------------------------------------------------
 ## OBTAIN BENCHMARK HISTORICAL DATA
@@ -19,44 +29,36 @@ for (f in r_files) {
 ## Fixed          AGG  Bloomberg US Aggregate Bond
 ## Cash           SHV FTSE 3-month treasury bill
 
-out <- equityget(c('SPY', 'IWM', 'EFA', 'AGG', 'SHV'), from='1995-01-01')
-close  <- out$close
-twr    <- out$twr
-colnames(close) <- c('US_L', 'US_S', 'Inter', 'Fixed', 'Cash')
-colnames(twr)  <- c('US_L', 'US_S', 'Inter', 'Fixed', 'Cash')
-## plot
+period <- 'days'
+## periods per year
+if (period == 'years') {
+    nperiod <- 1
+} else if (period == 'months') {
+    nperiod <- 12
+} else if (period == 'weeks') {
+    nperiod <- 52
+} else {
+    ## days
+    ## number of periods will change a bit each year
+    ## 365.25 (days on average per year) * 5/7 (proportion work days per week)
+    ## - 6 (weekday holidays) - 3*5/7 (fixed date holidays) = 252.75 ≈ 253
+    nperiod <- 253
+}
+
+out <- equityget(c('SPY', 'IWM', 'EFA', 'AGG', 'SHV'), from='1995-01-01',
+                 period=period)
+benchclose  <- out$close
+benchtwr    <- out$twr
+colnames(benchclose) <- c('US_L', 'US_S', 'Inter', 'Fixed', 'Cash')
+colnames(benchtwr)  <- c('US_L', 'US_S', 'Inter', 'Fixed', 'Cash')
+## plot closing prices and TWR
 plotspace(1,2)
-plotxts(close)
-plotxts(twr)
+plotxts(benchclose)
+## plotzoo(benchclose)
+plotxts(benchtwr)
 
-
-
-benchmarkdf <- as.data.frame(benchmarkm)
-pairsdf(benchmarkdf)
-pairsdf(na.omit(benchmarkdf))
-benchmarkdf$date <- as.Date( rownames(benchmarkdf) )
-plotdfall(benchmarkdf, 'date', size=0.01, type='b')
-
-closedf <- as.data.frame(closem)
-closedf$date <- as.Date( rownames(closedf) )
-plotdfall(closedf, 'date', size=0.01, type='b')
-
-## convert above into TWR
-nrows <- nrow(benchmark_xts)
-returnp1 <- benchmark_xts[2:nrows] / benchmark_xts[1:(nrows-1)]
-return   <- returnp1 - 1
-
-head(returnp1)
-head(return * 100)
-
-
-a <- head(benchmark_xts[2:nrows]) - 28
-b <- head(benchmark_xts[1:(nrows-1)]) - 28
-a/b
-
-dlh not sure why above does not work
-
-
+## only keep twr for dates where all are defined
+benchtwr <- na.omit(benchtwr)
 
 
 ##-----------------------------------------------------------------------------
@@ -89,39 +91,66 @@ monthly_spending <- c( 1000,
 monthly_saving   <- c( 500, 
                        0, 
                        0)
+monthly_change <-  monthly_saving - monthly_spending
 
-## set specific date spending (specify at end of month)
-spending <- '
-    Date    invest    ira   roth
-1/31/22     1000        0      0
-4/30/22        0     5000      0
-'
+## calculate changes per period
+period_change  <- monthly_change * 12 / nperiod
 
+
+## set specific date spending and saving (specify at end of a period)
 saving <- '
     Date    invest    ira   roth
 2/28/22          0  20000       0     
 3/30/22         0      0   50000 
 '
+saving <- readall(saving)
+saving_in   <- as_tibble(saving)
+saving_in$Date   <- as.Date(saving_in$Date, "%m/%d/%y")
+
+spending <- '
+    Date    invest    ira   roth
+1/31/22     1000        0      0
+4/30/22        0     5000      0
+'
+spending <- readall(spending)
+spending_in <- as_tibble(spending)
+spending_in$Date <- as.Date(spending_in$Date, "%m/%d/%y")
+
+## convert to XTS
+saving   <- xts::as.xts(zoo::read.zoo(saving,   index.column = 1, format = "%m/%d/%Y" ))
+spending <- xts::as.xts(zoo::read.zoo(spending, index.column = 1, format = "%m/%d/%Y" ))
+
 
 
 ##-----------------------------------------------------------------------------
-## SET PARAMETERS FOR MONTE CARLO SIMULATIONS
+## determine number of timesteps and create date sequence
+if (period == 'years') {
+    ntimestep <- as.numeric(format(sim_end, "%Y")) - as.numeric(format(sim_start,"%Y"))
+    ## Create sequence of dates at ends of periods for simulation 
+    ## (+1 on ntimestep is so start with initial value)
+    Date      <- seq(as.Date(sim_start), length=ntimestep+1, by=period) - 1
+} else if (period == 'months') {
+    ntimestep <- lubridate::interval(sim_start, sim_end) %/% months(1) + 1
+    Date      <- seq(as.Date(sim_start), length=ntimestep+1, by=period) - 1
+} else if (period == 'weeks') {
+    ntimestep <- ceiling( (sim_end - sim_start) / 7 )  # rounds up
+    Date      <- seq(as.Date(sim_start), length=ntimestep+1, by=period) - 1
+} else {
+    ## period = 'days'
+    ## install.packages('bizdays')
+    holidays <- timeDate::holidayNYSE(year = c(2021:2051))
+    bizdays::create.calendar("USA", holiday =holidays, weekdays=c("saturday", "sunday"))
+    Date <- bizdays::bizseq(sim_start, sim_end, "USA")
+}
+## Number of timesteps for the simulation
+ntimestep = length(Date)
 
-## Set number of Monte Carlo Simulations
-mc_rep = 10
-## Set number of timesteps for the simulation
-ntimestep = 36
-## Set simulation start date to start with current month since my returns are monthly
-sim_start <- as.Date(format(Sys.Date(), "%Y-%m-01"))
-## uncomment following to enter start date (use 1st of month if return and spending data are eom)
-## sim_start <- as.Date('2022-01-01', %Y-%m-%d)
-## Create sequence of dates at ends of months for simulation 
-## (+1 on ntimestep is so start with initial value)
-Date     <- seq(as.Date(sim_start), length=ntimestep+1, by="1 month") - 1
 ## split off 1st date since mc will only iterate on future dates
 date0    <- Date[1]
 datesim  <- Date[2:length(Date)]
 
+
+##-----------------------------------------------------------------------------
 ## Define starting value and weights for each asset and total value
 value0 <- data.frame(invest = 10000,
                      ira    = 20000,
@@ -130,40 +159,44 @@ tvalue0 <- sum(value0)
 weights <- c(value0[[1]]/tvalue0,
              value0[[2]]/tvalue0,
              value0[[3]]/tvalue0)
-
 print(weights)
+
+## Define asset allocation for each account
+allocation <- '
+account US_L US_S Inter Fixed Cash
+invest    50   10     0    30   10
+ira       40   30     5    20    5
+roth      50   30    10    10    0
+'
+allocation <- readall(allocation)
+print(allocation)
 
 
 ##-----------------------------------------------------------------------------
 ## READ IN DATA FOR EACH ASSET
 
-return_in   <- as_tibble(readall(return))
-spending_in <- as_tibble(readall(spending))
-saving_in   <- as_tibble(readall(saving))
-naccts      <- ncol(return_in) - 1
-
-## convert date field to date format
-return_in$Date   <- as.Date(return_in$Date, "%m/%d/%y")
-spending_in$Date <- as.Date(spending_in$Date, "%m/%d/%y")
-saving_in$Date   <- as.Date(saving_in$Date, "%m/%d/%y")
-
-## convert return columns as matrix for efficiency later
-returnm <- as.matrix(return_in[2:ncol(return_in)])
-
-## following commented out because reading rather than calculating returns
-## returns = function(df){
-##   rows  <- nrow(df)
-##   return <- df[2:rows, ] / df[1:rows-1, ] - 1
-## }
+## ##----------------------
+## ## OLD
+## return_in   <- as_tibble(readall(return))
+## naccts      <- ncol(return_in) - 1
 ## 
-## # Get the asset returns
-## return <- returns(price)
+## ## convert date field to date format
+## return_in$Date   <- as.Date(return_in$Date, "%m/%d/%y")
+## 
+## ## convert return columns as matrix for efficiency later
+## returnm <- as.matrix(return_in[2:ncol(return_in)])
+## ## OLD
+## ##----------------------
+
+returnm     <- benchtwr
 
 ## calculate mean return for each asset
 means <- colMeans(returnm)
 
 ## Get the Variance Covariance Matrix of asset returns
-pairsdf(returnm)
+plotspace(1,1)
+plot.new()
+pairsdf(as.matrix(returnm))
 covarm <- cov(returnm)
 print(covarm)
 
