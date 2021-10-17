@@ -1,4 +1,4 @@
-f## https://israeldi.github.io/bookdown/_book/monte-carlo-simulation-of-stock-portfolio-in-r-matlab-and-python.html
+## https://israeldi.github.io/bookdown/_book/monte-carlo-simulation-of-stock-portfolio-in-r-matlab-and-python.html
 
 source('/home/dlhjel/GitHub_repos/R-setup/setup.r')
 path <- '/home/dlhjel/GitHub_repos/Retirement/'
@@ -8,15 +8,44 @@ for (f in r_files) {
   ## cat("f =",f,"\n")
   source(f)
 }
+is.date <- function(x) inherits(x, 'Date')
 
 
 ##-----------------------------------------------------------------------------
 ## SET PARAMETERS FOR MONTE CARLO SIMULATIONS
 ## Set number of Monte Carlo Simulations
-mc_rep = 10
-## Set simulation start date to start with current month since my returns are monthly
+mc_rep    <- 10
+period    <- 'days'
+## Set simulation start and approximate end dates
 sim_start <- as.Date(format(Sys.Date(), "%Y-%m-01"))
-sim_end   <- as.Date('2021-12-31')
+sim_end   <- as.Date('2021-11-30')    # must be a day in the period
+
+
+##-----------------------------------------------------------------------------
+## Define starting value and weights for each asset and total value
+## create matrix of values for each account
+value0 <- cbind(invest = 10000,
+                ira    = 20000,
+                roth   = 30000)
+nacct  <- ncol(value0)
+tvalue0 <- sum(value0)
+weights <- c(value0[[1]]/tvalue0,
+             value0[[2]]/tvalue0,
+             value0[[3]]/tvalue0)
+print(weights)
+
+## Define asset allocation for each account
+allocation <- '
+account US_L US_S Inter Fixed Cash
+invest    50   10     0    30   10
+ira       40   30     5    20    5
+roth      50   30    10    10    0
+'
+allocation <- readall(allocation)
+rownames(allocation) <- allocation$account
+allocation$account   <- NULL
+allocation <- as.matrix(allocation / 100)
+print(allocation)
 
 
 ##-----------------------------------------------------------------------------
@@ -29,7 +58,6 @@ sim_end   <- as.Date('2021-12-31')
 ## Fixed          AGG  Bloomberg US Aggregate Bond
 ## Cash           SHV FTSE 3-month treasury bill
 
-period <- 'days'
 ## periods per year
 if (period == 'years') {
     nperiod <- 1
@@ -101,7 +129,8 @@ period_change  <- monthly_change * 12 / nperiod
 saving <- '
     Date    invest    ira   roth
 2/28/22          0  20000       0     
-3/30/22         0      0   50000 
+3/30/22         0      0   50000
+4/30/22          0   60000  60000
 '
 saving <- readall(saving)
 saving_in   <- as_tibble(saving)
@@ -117,8 +146,9 @@ spending_in <- as_tibble(spending)
 spending_in$Date <- as.Date(spending_in$Date, "%m/%d/%y")
 
 ## convert to XTS
-saving   <- xts::as.xts(zoo::read.zoo(saving,   index.column = 1, format = "%m/%d/%Y" ))
-spending <- xts::as.xts(zoo::read.zoo(spending, index.column = 1, format = "%m/%d/%Y" ))
+## note the format used below must match that in the dataframe being read
+saving   <- xts::as.xts(zoo::read.zoo(saving,   index.column = 1, format = "%m/%d/%y" ))
+spending <- xts::as.xts(zoo::read.zoo(spending, index.column = 1, format = "%m/%d/%y" ))
 
 
 
@@ -143,33 +173,11 @@ if (period == 'years') {
     Date <- bizdays::bizseq(sim_start, sim_end, "USA")
 }
 ## Number of timesteps for the simulation
-ntimestep = length(Date)
+ntimestep = length(Date) - 1   # minus 1 because Date constains time zero
 
 ## split off 1st date since mc will only iterate on future dates
 date0    <- Date[1]
 datesim  <- Date[2:length(Date)]
-
-
-##-----------------------------------------------------------------------------
-## Define starting value and weights for each asset and total value
-value0 <- data.frame(invest = 10000,
-                     ira    = 20000,
-                     roth   = 30000)
-tvalue0 <- sum(value0)
-weights <- c(value0[[1]]/tvalue0,
-             value0[[2]]/tvalue0,
-             value0[[3]]/tvalue0)
-print(weights)
-
-## Define asset allocation for each account
-allocation <- '
-account US_L US_S Inter Fixed Cash
-invest    50   10     0    30   10
-ira       40   30     5    20    5
-roth      50   30    10    10    0
-'
-allocation <- readall(allocation)
-print(allocation)
 
 
 ##-----------------------------------------------------------------------------
@@ -178,26 +186,27 @@ print(allocation)
 ## ##----------------------
 ## ## OLD
 ## return_in   <- as_tibble(readall(return))
-## naccts      <- ncol(return_in) - 1
 ## 
 ## ## convert date field to date format
 ## return_in$Date   <- as.Date(return_in$Date, "%m/%d/%y")
 ## 
 ## ## convert return columns as matrix for efficiency later
 ## returnm <- as.matrix(return_in[2:ncol(return_in)])
+##
+## use above plus following to get old results
+## benchtwr <- returnm
 ## ## OLD
 ## ##----------------------
 
-returnm     <- benchtwr
+## number of benchmarks used
+nbench  <- ncol(benchtwr)
 
-## calculate mean return for each asset
-means <- colMeans(returnm)
+## calculate mean return for each benchmark asset
+means <- colMeans(benchtwr)
 
-## Get the Variance Covariance Matrix of asset returns
-plotspace(1,1)
-plot.new()
-pairsdf(as.matrix(returnm))
-covarm <- cov(returnm)
+## Get the Variance Covariance Matrix of benchmark returns
+## pairsdf(as.matrix(benchtwr))
+covarm <- cov(benchtwr)
 print(covarm)
 
 ## Lower Triangular Matrix from Choleski Factorization, L where L * t(L) = covarm
@@ -208,51 +217,71 @@ print(L)
 
 
 ##-----------------------------------------------------------------------------
-## modify saving and spending dataframes to have 1st column have all dates in 'datesim'
-## then need to modify mc loop to use new dataframes
-endcol <- ncol(saving_in)
-saving <- as_tibble(data.frame(matrix(0,    # Create data frame of zeros
-                        nrow = length(datesim),
-                        ncol = endcol)))
-names(saving) <- names(saving_in)
-saving$Date <- datesim
-spending <- saving # copy blank saving dataframe to spending dataframe
+## ## modify saving and spending dataframes to have 1st column have all dates in 'datesim'
+## ## then need to modify mc loop to use new dataframes
+## endcol <- ncol(saving_in)
+## saving <- as_tibble(data.frame(matrix(0,    # Create data frame of zeros
+##                         nrow = length(datesim),
+##                         ncol = endcol)))
+## names(saving) <- names(saving_in)
+## saving$Date <- datesim
+## spending <- saving # copy blank saving dataframe to spending dataframe
+## ## add each user specified entry to saving
+## for (i in 1:nrow(saving_in)) {
+##   irow <- birk::which.closest(datesim, saving_in$Date[i])
+##   saving[irow, 2:endcol] <- saving_in[i, 2:endcol]
+## }
+## ## add each user specified entry to saving
+## for (i in 1:nrow(spending_in)) {
+##   irow <- birk::which.closest(datesim, spending_in$Date[i])
+##   spending[irow, 2:endcol] <- spending_in[i, 2:endcol]
+## }
+## ## add monthly saving and spending
+## for (i in 1:nrow(saving)) {
+##     saving[i, 2:endcol]   <- saving[i, 2:endcol]   + monthly_saving
+##     spending[i, 2:endcol] <- spending[i, 2:endcol] + monthly_spending
+## }
+
+
+## create xts object with row for each datesim and column for each account
+accounts     <- names(spending)
+zeros        <- xts::xts(matrix(0, length(datesim), length(accounts)),
+                         datesim, dimnames=list(NULL, accounts))
+save_expend  <- zeros
+spend_expand <- zeros
+
 ## add each user specified entry to saving
-for (i in 1:nrow(saving_in)) {
-  irow <- birk::which.closest(datesim, saving_in$Date[i])
-  saving[irow, 2:endcol] <- saving_in[i, 2:endcol]
-}
-## add each user specified entry to saving
-for (i in 1:nrow(spending_in)) {
-  irow <- birk::which.closest(datesim, spending_in$Date[i])
-  spending[irow, 2:endcol] <- spending_in[i, 2:endcol]
-}
-## add monthly saving and spending
 for (i in 1:nrow(saving)) {
-    saving[i, 2:endcol]   <- saving[i, 2:endcol]   + monthly_saving
-    spending[i, 2:endcol] <- spending[i, 2:endcol] + monthly_spending
+    irow <- birk::which.closest(datesim, zoo::index(saving[i]))
+    save_expand[irow,] <- saving[i,]
 }
+
+## add monthly saving and spending
+for (i in 1:nrow(spending)) {
+    irow <- birk::which.closest(datesim, zoo::index(spending[i]))
+    spend_expand[irow,] <- spending[i,]
+}
+
+## create single xts object with the total amount added and removed
+inout <- save_expand - spend_expand
+
+
 
 ##-----------------------------------------------------------------------------
 ## START MONTE CARLO SIMULATION
-
-## SPEEDUP ATTEMPT
-## convert dataframes to matrices
-savingm   <- as.matrix(saving[2:(naccts+1)])
-spendingm <- as.matrix(spending[2:(naccts+1)])
 
 ## initialize variables
 ## twr and totalvalue matrices
 ## row for each timestep
 ## column for each mc sim
-twrm        <- matrix(0, ntimestep, mc_rep)
-totalvaluem <- twrm
-## same as above for value but with 2nd dimension for each account 
-valuem     <- array(0, dim=c(ntimestep, naccts, mc_rep))
+twr        <- matrix(0, ntimestep, mc_rep)
+totalvalue <- twr
+## same as above for value but with 2nd dimension for each account
+value      <- array(0, dim=c(ntimestep, nacct, mc_rep))
 
 ## Extend means vector to a matrix
-## one row for each account (or investment column) repeated in columns for each timestep
-meansm = matrix(rep(means, ntimestep), nrow = ncol(returnm))
+## one row for each benchmark repeated in columns for each timestep
+meansm <- matrix(rep(means, ntimestep), nrow = nbench)
 
 ## set seed if want to repeat exactly
 set.seed(200)
@@ -265,38 +294,38 @@ for (i in 1:mc_rep) {
     valueold   <- value0
     
     ## obtain random z values for each account (rows) for each date increment (columns)
-    Z <- matrix( rnorm( naccts * ntimestep ), ncol = ntimestep)
+    Z <- matrix( rnorm( nbench * ntimestep ), ncol = ntimestep)
 
     ## simulate returns for each increment forward in time (assumed same as whatever data was)
-    sim_return <- meansm + L %*% Z
+    sim_benchtwr <- meansm + L %*% Z
     ## to view as a dataframe
-    ## dfsim <- as_tibble(as.data.frame(t(sim_return)))
+    ## dfsim <- as_tibble(as.data.frame(t(sim_benchtwr)))
 
     ## Calculate vector of portfolio returns
-    twr_i <- cumprod( weights %*% sim_return + 1 ) -1 # ntimestep entries
+    twr_i <- cumprod( weights %*% allocation %*% sim_benchtwr + 1 ) -1 # ntimestep entries
     
     ## Add it to the monte-carlo matrix
-    twrm[,i] <- twr_i;
-    
+    twr[,i] <- twr_i;
+
+    ## figure out account values and new weights
     for (j in 1:ntimestep) {
         ## for each time increment
-        
-        ## reduce value to reflect spending at start of time increment
-        spent <- spendingm[j,]
+        if (j == ntimestep-1) browser()   # dlh some error in simulation values
+        cat('timestep', j, '\n')
       
-        ## update value from reduced starting value and simulated return
-        ## growth <- spent + t(sim_return)[j,] * spent
-        growth <- t(sim_return)[j,] * (valueold - spent)
+        ## growth due to market
+        sb     <- sim_benchtwr[,j]   # vector of bencmark returns for time j
+        growth <- t( allocation %*% sb ) * valueold
         
-        ## increase value to reflect additions at end of time increment
-        added <- savingm[j,]
+        ## add or remove funds at end of each period
+        in_out <- inout[j,]
         
         ## value for simulation i
-        valuem[j,,i] <- as.numeric(valueold - spent + growth + added)
+        value[j,,i] <- as.numeric(valueold + growth + in_out)
         ## value for each account
-        valueold     <- valuem[j,,i]
+        valueold     <- value[j,,i]
         ## total value for all accounts combined
-        totalvaluem[j,i] <- sum(valueold)
+        totalvalue[j,i] <- sum(valueold)
         
         ## recalculate weights after adjustments
         weights <- as.numeric(valueold / sum(valueold))
@@ -307,14 +336,14 @@ for (i in 1:mc_rep) {
 ## GATHER RESULTS
 
 ## add row for starting 0s for saving and spending dfs
-zeros <- rep(0, naccts)
+zeros <- rep(0, nbench)
 zeros <- data.frame(Date[1], t(zeros))
 names(zeros) <- names(saving)
 saving   <- as_tibble(rbind(zeros, saving))
 spending <- as_tibble(rbind(zeros, spending))
 
-## put twrm results into dataframe
-twr <- as.data.frame(twrm)
+## put twr results into dataframe
+twr <- as.data.frame(twr)
 ## add row for starting value
 ones <- rep(0, ncol(twr))
 twr <- rbind(ones, twr)
@@ -322,14 +351,14 @@ twr <- rbind(ones, twr)
 ## twr <- as_tibble(cbind(Date=Date, twr))
 
 ## put total value results into dataframe
-totalvalue <- as.data.frame(totalvaluem)
+totalvalue <- as.data.frame(totalvalue)
 totalvalue <- rbind(sum(value0), totalvalue)
 ## totalvalue <- as_tibble(cbind(Date=Date, totalvalue))
 
-## valuem is size ntimestep x naccts x mc_rep
-## e.g., valuem[1,,2] returns 1st timestep results for all account values for mc_rep=2
-##       valuem[,,1]  returns all timestep results for all account values for mc_rep=1
-##       valuem[,1,]  returns all timestep results for 1st account for all mc_reps
+## value is size ntimestep x nbench x mc_rep
+## e.g., value[1,,2] returns 1st timestep results for all account values for mc_rep=2
+##       value[,,1]  returns all timestep results for all account values for mc_rep=1
+##       value[,1,]  returns all timestep results for 1st account for all mc_reps
 
 
 
@@ -442,7 +471,7 @@ ci(twr, 0.999)
 ## value <- data.frame(matrix(0,    # Create data frame of zeros
 ##                            nrow = length(datesim),
 ##                            ncol = mc_rep))
-## for (i in 1:naccts) {
+## for (i in 1:nbench) {
 ##     cat('account', i, '\n')
-##     value <- valuem[,i,]
+##     value <- value[,i,]
 ## }
