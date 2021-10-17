@@ -18,15 +18,15 @@ mc_rep    <- 10
 period    <- 'days'
 ## Set simulation start and approximate end dates
 sim_start <- as.Date(format(Sys.Date(), "%Y-%m-01"))
-sim_end   <- as.Date('2021-11-30')    # must be a day in the period
+sim_end   <- as.Date('2030-11-30')    # must be a day in the period
 
 
 ##-----------------------------------------------------------------------------
 ## Define starting value and weights for each asset and total value
 ## create matrix of values for each account
-value0 <- cbind(invest = 10000,
-                ira    = 20000,
-                roth   = 30000)
+value0 <- cbind(invest = 100000,
+                ira    = 200000,
+                roth   = 300000)
 nacct  <- ncol(value0)
 tvalue0 <- sum(value0)
 weights <- c(value0[[1]]/tvalue0,
@@ -112,7 +112,7 @@ return <- '
 3/31/17       0.01   0.05   0.06
 '
 
-## set monthly changes to accounts
+## set monthly changes to account
 monthly_spending <- c( 1000, 
                        0, 
                        0)
@@ -127,10 +127,10 @@ period_change  <- monthly_change * 12 / nperiod
 
 ## set specific date spending and saving (specify at end of a period)
 saving <- '
-    Date    invest    ira   roth
-2/28/22          0  20000       0     
-3/30/22         0      0   50000
-4/30/22          0   60000  60000
+    Date    invest    ira    roth
+2/28/22          0   2000       0     
+3/30/22          0      0     500
+4/30/22          0   1000    1000
 '
 saving <- readall(saving)
 saving_in   <- as_tibble(saving)
@@ -139,7 +139,7 @@ saving_in$Date   <- as.Date(saving_in$Date, "%m/%d/%y")
 spending <- '
     Date    invest    ira   roth
 1/31/22     1000        0      0
-4/30/22        0     5000      0
+4/30/22        0      500      0
 '
 spending <- readall(spending)
 spending_in <- as_tibble(spending)
@@ -247,16 +247,16 @@ print(L)
 accounts     <- names(spending)
 zeros        <- xts::xts(matrix(0, length(datesim), length(accounts)),
                          datesim, dimnames=list(NULL, accounts))
-save_expend  <- zeros
+save_expand  <- zeros
 spend_expand <- zeros
 
-## add each user specified entry to saving
+## add user specified entries to saving
 for (i in 1:nrow(saving)) {
     irow <- birk::which.closest(datesim, zoo::index(saving[i]))
     save_expand[irow,] <- saving[i,]
 }
 
-## add monthly saving and spending
+## add usser speified spending entries
 for (i in 1:nrow(spending)) {
     irow <- birk::which.closest(datesim, zoo::index(spending[i]))
     spend_expand[irow,] <- spending[i,]
@@ -265,6 +265,10 @@ for (i in 1:nrow(spending)) {
 ## create single xts object with the total amount added and removed
 inout <- save_expand - spend_expand
 
+## add every period additions and subtractions
+for (i in 1:nacct) {
+  inout[,i] <- inout[,i] + period_change[i]
+}
 
 
 ##-----------------------------------------------------------------------------
