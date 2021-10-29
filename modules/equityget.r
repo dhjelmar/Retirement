@@ -1,4 +1,4 @@
-equityget <- function(symbol, from, to=Sys.Date(), source='yahoo', period='days') {
+equityget <- function(symbol, from=NULL, to=Sys.Date(), source='yahoo', period='days') {
     ## function returns a dataframe of adjusted prices
     ## period = 'days' (default), 'weeks', 'months', 'quarters', or 'years' 
 
@@ -13,13 +13,22 @@ equityget <- function(symbol, from, to=Sys.Date(), source='yahoo', period='days'
     ##  the adjusted closing price considers other factors like dividends, stock splits, 
     ##  and new stock offerings. Since the adjusted closing price begins where the 
     ##  closing price ends, it can be called a more accurate measure of stocks' value"
-    quantmod::getSymbols(symbol, 
-                         src = source, 
-                         from = from, 
-                         to  = to,
-                         auto.assign = TRUE, 
-                         warnings = FALSE)
-
+    if (is.null(from)) {
+        ## from not specified so grab earliest to date
+        quantmod::getSymbols(symbol, 
+                             src = source, 
+                             to  = to,
+                             auto.assign = TRUE, 
+                             warnings = FALSE)
+    } else {
+        quantmod::getSymbols(symbol, 
+                             src = source, 
+                             from = from, 
+                             to  = to,
+                             auto.assign = TRUE, 
+                             warnings = FALSE)
+    }
+    
     ## index of an xts object is the date
     ## can access using zoo::index()
     ## dates <- as.Date( zoo::index( get(symbols[1]) ) )
