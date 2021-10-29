@@ -1,15 +1,28 @@
 ## https://israeldi.github.io/bookdown/_book/monte-carlo-simulation-of-stock-portfolio-in-r-matlab-and-python.html
 
-source('/home/dlhjel/GitHub_repos/R-setup/setup.r')
-path <- '/home/dlhjel/GitHub_repos/Retirement/'
-setwd(path)
-r_files <- list.files(paste(path,'modules',sep=""), pattern="*.[rR]$", full.names=TRUE)
-for (f in r_files) {
-  ## cat("f =",f,"\n")
-  source(f)
+##-----------------------------------------------------------------------------
+## setup
+os <- .Platform$OS.type
+if (os == 'windows') {
+    ## load generic modules
+    source("F:\\Documents\\01_Dave's Stuff\\Programs\\GitHub_home\\R-setup\\setup.r")
+    ## identify working folder
+    path <- c("f:/Documents/01_Dave's Stuff/Programs/GitHub_home/Retirement/")
+} else {
+    ## os == unix
+    source('~/GitHub_repos/R-setup/setup.r')
+    path <- c('~/GitHub_repos/Retirement/')
 }
-is.date <- function(x) inherits(x, 'Date')
+## set working folder
+setwd(path)
+## load local modules
+r_files <- list.files(paste(path, 'modules/', sep=''), pattern="*.[rR]$", full.names=TRUE)
+for (f in r_files) {
+    ## cat("f =",f,"\n")
+    source(f)
+}
 
+is.date <- function(x) inherits(x, 'Date')
 
 ##-----------------------------------------------------------------------------
 ## SET PARAMETERS FOR MONTE CARLO SIMULATIONS
