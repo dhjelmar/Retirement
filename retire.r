@@ -15,7 +15,7 @@ is.date <- function(x) inherits(x, 'Date')
 ## SET PARAMETERS FOR MONTE CARLO SIMULATIONS
 ## Set number of Monte Carlo Simulations
 mc_rep    <- 10
-period    <- 'days'
+period    <- 'years'
 ## Set simulation start and approximate end dates
 sim_start <- as.Date(format(Sys.Date(), "%Y-%m-01"))
 sim_end   <- as.Date('2030-11-30')    # must be a day in the period
@@ -133,8 +133,6 @@ saving <- '
 4/30/22          0   1000    1000
 '
 saving <- readall(saving)
-saving_in   <- as_tibble(saving)
-saving_in$Date   <- as.Date(saving_in$Date, "%m/%d/%y")
 
 spending <- '
     Date    invest    ira   roth
@@ -142,8 +140,6 @@ spending <- '
 4/30/22        0      500      0
 '
 spending <- readall(spending)
-spending_in <- as_tibble(spending)
-spending_in$Date <- as.Date(spending_in$Date, "%m/%d/%y")
 
 ## convert to XTS
 ## note the format used below must match that in the dataframe being read
@@ -216,31 +212,10 @@ L = t( chol(covarm) )
 print(L)
 
 
-##-----------------------------------------------------------------------------
-## ## modify saving and spending dataframes to have 1st column have all dates in 'datesim'
-## ## then need to modify mc loop to use new dataframes
-## endcol <- ncol(saving_in)
-## saving <- as_tibble(data.frame(matrix(0,    # Create data frame of zeros
-##                         nrow = length(datesim),
-##                         ncol = endcol)))
-## names(saving) <- names(saving_in)
-## saving$Date <- datesim
-## spending <- saving # copy blank saving dataframe to spending dataframe
-## ## add each user specified entry to saving
-## for (i in 1:nrow(saving_in)) {
-##   irow <- birk::which.closest(datesim, saving_in$Date[i])
-##   saving[irow, 2:endcol] <- saving_in[i, 2:endcol]
-## }
-## ## add each user specified entry to saving
-## for (i in 1:nrow(spending_in)) {
-##   irow <- birk::which.closest(datesim, spending_in$Date[i])
-##   spending[irow, 2:endcol] <- spending_in[i, 2:endcol]
-## }
-## ## add monthly saving and spending
-## for (i in 1:nrow(saving)) {
-##     saving[i, 2:endcol]   <- saving[i, 2:endcol]   + monthly_saving
-##     spending[i, 2:endcol] <- spending[i, 2:endcol] + monthly_spending
-## }
+dlh need to rethink save_expand and spend_expand
+currently, there is no entry for the 0th year,
+but I say additions and subtractions are at the end of every year
+
 
 
 ## create xts object with row for each datesim and column for each account
@@ -314,8 +289,8 @@ for (i in 1:mc_rep) {
     ## figure out account values and new weights
     for (j in 1:ntimestep) {
         ## for each time increment
-        if (j == ntimestep-1) browser()   # dlh some error in simulation values
-        cat('timestep', j, '\n')
+        ## if (j == ntimestep-1) browser()
+        cat('simulation', i, '; timestep', j, '\n')
       
         ## growth due to market
         sb     <- sim_benchtwr[,j]   # vector of bencmark returns for time j
@@ -338,13 +313,6 @@ for (i in 1:mc_rep) {
 
 ##-----------------------------------------------------------------------------
 ## GATHER RESULTS
-
-## add row for starting 0s for saving and spending dfs
-zeros <- rep(0, nbench)
-zeros <- data.frame(Date[1], t(zeros))
-names(zeros) <- names(saving)
-saving   <- as_tibble(rbind(zeros, saving))
-spending <- as_tibble(rbind(zeros, spending))
 
 ## put twr results into dataframe
 twr <- as.data.frame(twr)
@@ -440,7 +408,9 @@ cis <- as_tibble( data.frame(Date,
                              conf_99.9_upper_percent = ci(df, 0.999),
                              conf_99.0_upper_percent = ci(df, 0.99),
                              conf_95.0_upper_percent = ci(df, 0.95),
-                             conf_50.0_percent       = ci(df, 0.5),
+                             conf_90.0_upper_percent = ci(df, 0.90),
+                             conf_50.0_percent       = ci(df, 0.50),
+                             conf_90.0_lower_percent = ci(df, 0.10),
                              conf_95.0_lower_percent = ci(df, 0.05),
                              conf_99.0_lower_percent = ci(df, 0.01),
                              conf_99.9_lower_percent = ci(df, 0.001)) )
@@ -464,7 +434,8 @@ cum_final_stats <- data.frame(mean   = mean(cum_final),
                               sd     = sd(cum_final))
 print(cum_final_stats)
 
-final <- cbind(saving, spending[2:ncol(spending)], ci(twr, 0.001), ci(totalvalue, 0.001))
+final <- cbind(save_expand, spend_expand[2:ncol(spend_expand)],
+               ci(twr, 0.001), ci(totalvalue, 0.001))
 cat('                   Saving            Spending      TWR (99.9% LB CI)   Value (99.9% LB CI)\n',
     '             ------------------ ------------------ ------------------  -------------------\n')
 print(final)
