@@ -58,7 +58,17 @@ work   <- subset(data, c(data$Account_Type == "401k (Fluor)" |
                          data$Account_Type == "403b"))
 
 ## select on of the above
-df <- invest
+df <- ira
+
+## strip df to only what is needed
+df <- select(df, c('Owner', 'Account_Type', 'Holding', 'Name', 'Shares'))
+
+## combine duplicate entries if needed
+nameskeep <- c('Account_Type', 'Holding', 'Name', 'Shares')
+df2 <- aggregate(df$Shares, by=list(df$Account_Type, df$Holding, df$Name), FUN=sum)
+names(df2) <- nameskeep
+df<- df2
+
 
 ## convert data to vectors
 asset   <- as.character(df$Holding)
