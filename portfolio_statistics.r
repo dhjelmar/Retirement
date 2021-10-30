@@ -25,21 +25,54 @@ for (f in r_files) {
 
 ##-----------------------------------------------------------------------------
 ## Import data
-data <- '
-asset  shares
-AAPL      166
-GOOG     1021
-FB        178
-'
-data_in <- readall(data)
+
+## ## example
+## data <- '
+## asset  shares
+## AAPL      166
+## GOOG     1021
+## FB        178
+## '
+## data_in <- readall(data)
+##
+## ## convert data to vectors
+## asset   <- as.character(data_in$asset)
+## shares  <- data_in$shares
+
+## define duration in years to use for beta and alpha
+duration = 5
+
+file <- "F:\\Documents\\01_Dave's Stuff\\Finances\\EdelmanFinancial_hjelmar.xlsx"
+data <- readall(file, sheet="Assets + Liabilities")
+
+## fake cash as SWVXX
+data[data$Holding == 'Cash',]$Holding <- 'SWVXX'
+
+## keep investment accounts
+unique(data$Account_Type)
+invest <- subset(data, data$Account_Type == "Investment")
+ira    <- subset(data, data$Account_Type == "IRA - Traditional")
+inher  <- subset(data, data$Account_Type == "IRA - Inherited Traditional")
+roth   <- subset(data, data$Account_Type == "IRA - Roth")
+work   <- subset(data, c(data$Account_Type == "401k (Fluor)" | 
+                         data$Account_Type == "403b"))
+
+## select on of the above
+df <- invest
 
 ## convert data to vectors
-asset   <- as.character(data_in$asset)
-shares  <- data_in$shares
+asset   <- as.character(df$Holding)
+shares  <- df$Shares
 
 ##-----------------------------------------------------------------------------
 ## get price info
-out <- equityinfo(asset, extract=c('Previous Close', 'P/E Ratio'))
+out <- equityinfo(asset, extract=c('Name', 'Previous Close', 'P/E Ratio'))
+## replace NA closing value for Cash or SWVXX with 1.0
+row <- which(grepl('^SWVXX$', row.names(out)))
+out[row,]$Name       <- 'Cash'
+## set cash value to 1
+out[row,]$`P. Close` <- 1
+## extract price
 price <- out$'P. Close'
 
 ## calculate value and weight of each asset
@@ -49,18 +82,36 @@ weight <- value / totalvalue
 
 ## get twr for each asset
 out <- equityget(asset, period='months')
-twr <- xts::last(out$twr, n=12*5)
+twr <- xts::last(out$twr, n=12*duration)
+col <- which(grepl('SWVXX', names(twr)))
+## set twr for SWVXX (i.e., cash) to 0.1%
+twr[,col] <- 0.001
 
 ## get twr for the benchmark
 out <- equityget('SPY', period='months')
-SPY <- as.numeric( xts::last(out$twr$SPY,  n=12*5) )
+benchmark <- as.numeric( xts::last(out$twr$SPY,  n=12*duration) )
+
+## put twr and SPY into single dataframe then omit NAs
+combined <- data.frame(twr, benchmark)
+combined <- na.omit(combined)
+dates <- row.names(combined)
+range(dates)
+years <- ( as.numeric( as.Date(dates[length(dates)]) ) - as.numeric( as.Date(dates[1]) ) ) / 365.25
+years
+
+## split back into twr and benchmark
+lastcol   <- ncol(combined)
+twr       <- combined[, 1:(lastcol-1)]
+benchmark <- combined[, lastcol]
 
 ## calculate alpha and beta for each asset
 beta  <- NA
 alpha <- NA
+plotspace(2,2)
 for (i in 1:length(asset)) {
     twr_asset <- as.numeric(twr[,i])
-    out <- alpha_beta(twr_asset, SPY)
+    out <- alpha_beta(twr_asset, benchmark, 
+                      plot = TRUE, ylabel=asset[i])
     beta[i]  <- out$beta
     alpha[i] <- out$alpha
 }
@@ -78,7 +129,7 @@ portfolio <- data.frame(asset  = 'portfolio',
                value  = totalvalue, 
                beta   = beta_portfolio,
                alpha  = alpha_portfolio)
-stats <- as_tibble( rbind(stats, portfolio) )
+stats <- rbind(stats, portfolio)
 print(stats)
 
 ## plot portfolio
@@ -88,11 +139,11 @@ yy <- stats[nrow(stats),]$alpha
 color <- as.character(out$legend[nrow(out$legend),]$color)
 points(xx, yy, pch=16, col=color)
 
-## plot interactive
-if (os == 'windows') {
-    ## following uses plotly which does not work on Chromebook
-    plot_interactive(stats, 'beta', 'alpha')
-}
+## ## plot interactive
+## if (os == 'windows') {
+##     ## following uses plotly which does not work on Chromebook
+##     plot_interactive(stats, 'beta', 'alpha')
+## }
 
 library(shiny)
 shinyplot(as.data.frame(stats), 'beta', 'alpha')
