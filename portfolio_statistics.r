@@ -26,12 +26,16 @@ for (f in r_files) {
 ##-----------------------------------------------------------------------------
 ## Import data
 data <- '
-    AAPL           GOOG           FB
-166.5791        1020.91       177.95
+asset  shares
+AAPL      166
+GOOG     1021
+FB        178
 '
-shares <- readall(data)
-asset  <- names(shares)
+data_in <- readall(data)
 
+## convert data to vectors
+asset   <- as.character(data_in$asset)
+shares  <- data_in$shares
 
 ##-----------------------------------------------------------------------------
 ## get price info
