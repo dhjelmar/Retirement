@@ -14,8 +14,8 @@ alpha_beta <- function(twr, twrbench, plot=FALSE, xlabel=NULL, ylabel=NULL, main
          alpha <- out$coefficients[[1]]
     } else {
          out <- plotfit(xx = twrbench, yy = twr, xlab=xlabel, ylab=ylabel, main=main)
-         beta  <- out$slope
-         alpha <- out$intercept
+         beta  <- out$fits$slope
+         alpha <- out$fits$intercept
     }
 
     ## alternate method to find beta
