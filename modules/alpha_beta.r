@@ -1,4 +1,5 @@
-alpha_beta <- function(twr, twrbench, plot=FALSE, xlabel=NULL, ylabel=NULL, main=NULL) {
+alpha_beta <- function(twr, twrbench, 
+                       plot=FALSE, xlabel=NULL, ylabel=NULL, main=NULL, range=NULL) {
 
     ##-----------------------------------------------------------------------------
     ## pull label from the name of the vector if not specified otherwise
@@ -13,7 +14,8 @@ alpha_beta <- function(twr, twrbench, plot=FALSE, xlabel=NULL, ylabel=NULL, main
          beta  <- out$coefficients[[2]]
          alpha <- out$coefficients[[1]]
     } else {
-         out <- plotfit(xx = twrbench, yy = twr, xlab=xlabel, ylab=ylabel, main=main)
+         out <- plotfit(xx = twrbench, yy = twr, xlab=xlabel, ylab=ylabel, main=main,
+                        xlimspec = range, ylimspec = range)
          beta  <- out$fits$slope
          alpha <- out$fits$intercept
     }
