@@ -42,11 +42,13 @@ for (f in r_files) {
 ## define duration in years to use for beta and alpha
 duration = 5
 
-file <- "F:\\Documents\\01_Dave's Stuff\\Finances\\EdelmanFinancial_hjelmar.xlsx"
-data <- readall(file, sheet="Assets + Liabilities")
+data <- readall('all.xlsx', sheet="Assets + Liabilities")
 
-## fake cash as SWVXX
-data[data$Holding == 'Cash',]$Holding <- 'SWVXX'
+## fake SWVXX as Cash
+data[data$Holding == 'SWVXX',]$Holding <- 'Cash'
+
+## yahoo uses "-" instead of "." in symbol names so convert
+data$Holding <- gsub("\\.", "-", data$Holding)
 
 ## keep investment accounts
 unique(data$Account_Type)
@@ -61,11 +63,11 @@ work   <- subset(data, c(data$Account_Type == "401k (Fluor)" |
 df <- ira
 
 ## strip df to only what is needed
-df <- select(df, c('Owner', 'Account_Type', 'Holding', 'Name', 'Shares'))
+df <- select(df, c('Owner', 'Account_Type', 'Holding', 'Shares'))
 
 ## combine duplicate entries if needed
-nameskeep <- c('Account_Type', 'Holding', 'Name', 'Shares')
-df2 <- aggregate(df$Shares, by=list(df$Account_Type, df$Holding, df$Name), FUN=sum)
+nameskeep <- c('Account_Type', 'Holding', 'Shares')
+df2 <- aggregate(df$Shares, by=list(df$Account_Type, df$Holding), FUN=sum)
 names(df2) <- nameskeep
 df<- df2
 
@@ -77,8 +79,8 @@ shares  <- df$Shares
 ##-----------------------------------------------------------------------------
 ## get price info
 out <- equityinfo(asset, extract=c('Name', 'Previous Close', 'P/E Ratio'))
-## replace NA closing value for Cash or SWVXX with 1.0
-row <- which(grepl('^SWVXX$', row.names(out)))
+## replace NA closing value for Cash with 1.0
+row <- which(grepl('^NA$', row.names(out)))
 out[row,]$Name       <- 'Cash'
 ## set cash value to 1
 out[row,]$`P. Close` <- 1
@@ -91,39 +93,67 @@ totalvalue <- sum(value)
 weight <- value / totalvalue
 
 ## get twr for each asset
-out <- equityget(asset, period='months')
-twr <- xts::last(out$twr, n=12*duration)
-col <- which(grepl('SWVXX', names(twr)))
-## set twr for SWVXX (i.e., cash) to 0.1%
-twr[,col] <- 0.001
+## twr <- equityhistory(asset, period='months')  # asset[1:50] works, [1:60] does not
+twr <- NA
+for (i in 1:length(asset)) {
+    ## equityhistory works for list of 50 symbols but not 60
+    ## maybe just do 1 at a time for now to keep simple
+    cat('i = ', i, 'asset =', asset[i], '\n')
+    if (asset[i] == 'Cash') {
+        ## cannot download price info
+        Cash <- 0.001
+        twr <- cbind(twr, Cash)
+    } else {
+        new <- equityhistory(asset[i], period='months')  # 50 works, 60 does not
+        twr <- cbind(twr, new$twr)     # xts cbind nicely lines up dates
+    }
+}
+## strip off 1st column
+twr$twr <- NULL 
+tail(twr)
+
+## strip out the dates need for alpha and beta
+twr <- xts::last(twr, n=12*duration)
 
 ## get twr for the benchmark
-out <- equityget('SPY', period='months')
-benchmark <- as.numeric( xts::last(out$twr$SPY,  n=12*duration) )
+outbench <- equityhistory('SPY', period='months')
+benchmark <- as.numeric( xts::last(outbench$twr$SPY,  n=12*duration) )
 
-## put twr and SPY into single dataframe then omit NAs
-combined <- data.frame(twr, benchmark)
-combined <- na.omit(combined)
-dates <- row.names(combined)
-range(dates)
-years <- ( as.numeric( as.Date(dates[length(dates)]) ) - as.numeric( as.Date(dates[1]) ) ) / 365.25
-years
 
-## split back into twr and benchmark
-lastcol   <- ncol(combined)
-twr       <- combined[, 1:(lastcol-1)]
-benchmark <- combined[, lastcol]
+## ##----------------------
+## ## put twr and SPY into single dataframe then omit NAs
+## combined <- data.frame(twr, benchmark)
+## combined <- na.omit(combined)
+## dates <- row.names(combined)
+## range(dates)
+## years <- ( as.numeric( as.Date(dates[length(dates)]) ) - as.numeric( as.Date(dates[1]) ) ) / 365.25
+## years
+## 
+## ## split back into twr and benchmark
+## lastcol   <- ncol(combined)
+## twr       <- combined[, 1:(lastcol-1)]
+## benchmark <- combined[, lastcol]
+## ##----------------------
 
 ## calculate alpha and beta for each asset
 beta  <- NA
 alpha <- NA
 plotspace(2,2)
 for (i in 1:length(asset)) {
+    cat('i =', i, '; asset =', asset[i], '\n')
     twr_asset <- as.numeric(twr[,i])
+
+    ## eliminate NAs for this asset / benchmark pair
+    dftemp <- na.omit( data.frame(twr_asset, benchmark) )
+    twr_asset <- dftemp[,1]
+    benchmark <- dftemp[,2]
+
+    ## determine alpha and beta for asset i
     out <- alpha_beta(twr_asset, benchmark, 
-                      plot = TRUE, ylabel=asset[i])
-    beta[i]  <- out$beta
+                      plot = TRUE, ylabel=asset[i],
+                      range = range(twr, benchmark, na.rm = TRUE))
     alpha[i] <- out$alpha
+    beta[i]  <- out$beta
 }
 stats <- data.frame(asset, 
                     shares = as.numeric(shares), 
