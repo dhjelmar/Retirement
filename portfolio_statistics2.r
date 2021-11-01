@@ -46,11 +46,11 @@ data <- readall('all.xlsx', sheet="Assets + Liabilities")
 
 
 ## delete non-security info (dlh remove this once clean xlsx)
-data <- data[ (data$Account_Type == '401k (Flour)' &
-               data$Account_Type == 'Bank' &
-               data$Account_Type == 'Credit cards' &
-               data$Account_Type == 'Primary home' &
-               data$Account_Type == 'Vacation home'),]
+data <- data[ (data$Account_Type != '401k (Flour)' &
+               data$Account_Type != 'Bank' &
+               data$Account_Type != 'Credit cards' &
+               data$Account_Type != 'Primary home' &
+               data$Account_Type != 'Vacation home'),]
 data <- data[(data$Holding      != 'SCGE1' &
                data$Holding      != 'SCGI1' &
                data$Holding      != 'SCGL1' &
@@ -76,16 +76,20 @@ refreshprice <- TRUE
 if (isTRUE(readprice)) {
     ## get current price info for each security
     allprice <- equityinfo(security, extract=c('Name', 'Previous Close', 'P/E Ratio'))
+    names(allprice) <- c('date', 'name', 'close', 'pe_ratio')
     ## replace NA closing value for Cash with 1.0
     row <- which(grepl('^NA$', row.names(allprice)))
     rownames(allprice)[rownames(allprice) == "NA"] <- "Cash"
-    allprice[row,]$Name       <- 'Cash'
+    allprice[row,]$name       <- 'Cash'
     ## set cash value to 1
-    allprice[row,]$`P. Close` <- 1
-    zoo::write.zoo(allprice, 'allprice.csv')
+    allprice[row,]$close <- 1
+    write.csv(allprice, 'out_allprice.csv')
+
 } else {
     ## read current price info from allprice.csv
-    allprice <- xts::as.xts( readall('allprice.csv') )
+    allprice <- read.csv('out_allprice.csv')
+    rownames(allprice) <- allprice$X
+    allprice$X <- NULL
 }
 
     
@@ -102,29 +106,34 @@ if (isTRUE(readprice)) {
         if (security[i] == 'Cash') {
             ## cannot download price info
             Cash <- 0.001
-            alltwr <- cbind(twr, Cash)
+            alltwr <- cbind(alltwr, Cash)
         } else {
             new <- equityhistory(security[i], period='months')  # 50 works, 60 does not
             alltwr <- cbind(alltwr, new$twr)     # xts cbind nicely lines up dates
         }
     }
     ## strip off 1st column
-    alltwr$twr <- NULL 
+    alltwr$alltwr <- NULL 
     tail(alltwr)
-    zoo::write.zoo(alltwr, 'alltwr.csv')
+    zoo::write.zoo(alltwr, 'out_alltwr.csv', sep=',')
 
     ## get twr for the benchmark
-    outbench <- equityhistory('SPY', period='months')
-    zoo::write.zoo(outbench, 'benchtwr.csv')
+    outbench <- equityhistory('SPY', period='months')$twr
+    zoo::write.zoo(outbench, 'out_benchtwr.csv', sep=',')
 
 } else {
     ## read historical twr info from file
-    alltwr   <- xts::as.xts( readall('alltwr.csv') )
-    benchtwr <- xts::as.xts( readall('benchtwr.csv') )
+
+  following does not work
+  
+      alltwr2   <- zoo::read.zoo('out_alltwr.csv')
+    benchtwr2 <- zoo::read.zoo('out_benchtwr.csv')
+    
+    alltwr   <- xts::as.xts( readall('out_alltwr.csv') )
+    benchtwr <- xts::as.xts( readall('out_benchtwr.csv') )
 }
 
-dlh need to check above, both write and read
-    
+
 ##-----------------------------------------------------------------------------
 ## select a unique account or combine accounts for alpha/beta calculation
 unique(data_accounts$Account_Type)
