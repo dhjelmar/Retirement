@@ -40,7 +40,7 @@ for (f in r_files) {
 ## shares  <- data_in$shares
 
 ## define duration in years to use for beta and alpha
-duration = 5
+duration = 1
 
 data <- readall('all.xlsx', sheet="Assets + Liabilities")
 
@@ -93,7 +93,7 @@ if (isTRUE(refreshprice)) {
 }
 
     
-refreshtwr <- TRUE
+refreshtwr <- FALSE
 if (isTRUE(refreshtwr)) {
 
     ## get twr for each security
@@ -118,7 +118,8 @@ if (isTRUE(refreshtwr)) {
     zoo::write.zoo(alltwr, 'out_alltwr.csv', sep=',')
 
     ## get twr for the benchmark
-    outbench <- equityhistory('SPY', period='months')$twr
+    benchname <- 'SPY'
+    benchtwr <- equityhistory(benchname, period='months')$twr
     zoo::write.zoo(outbench, 'out_benchtwr.csv', sep=',')
 
 } else {
@@ -176,17 +177,26 @@ value      <- shares * price
 totalvalue <- sum(value)
 weight <- value / totalvalue
 
+## get twr for each requested assset
+twr <- alltwr[, names(alltwr) %in% asset]
+## reorder twr to match order in asset
+twr <- twr[, match(asset, names(twr))]
+
 ## strip out the dates needed for alpha and beta
 ## combine twr and benchmarks to line up dates
-both <- cbind(alltwr, benchtwr)
+both <- cbind(twr, benchtwr)
 ## select the number of dates requested based on input duration
 both <- xts::last(both, n=12*duration)
 twr       <- both[, 1:ncol(twr)]
 benchmark <- both[,  (ncol(twr)+1):ncol(both)]
 benchmark <- as.numeric( benchmark )
 
-## twr       <- xts::last(alltwr,        n=12*duration)                # keep as xts for now
-## benchmark <- as.numeric( xts::last(benchtwr$SPY,  n=12*duration) )  # converted to vector
+## filter the dataframe with all assets to only include the assets being evaluated
+assetname <- allprice[rownames(allprice) %in% asset,]
+## reorder the list of assets to match the requested order
+assetname <- assetname[match(asset, row.names(assetname)),]
+## extract the asset name
+assetname <- assetname$name
 
 ## calculate alpha and beta for each asset
 beta  <- NA
@@ -204,8 +214,11 @@ for (i in 1:length(asset)) {
     ## determine alpha and beta for asset i
     plotspace(2,2)
     out <- alpha_beta(twr_asset, bench_asset, 
-                      plot = TRUE, ylabel=asset[i],
-                      range = range(twr, bench_asset, na.rm = TRUE))
+                      plot = TRUE, 
+                      xlabel = paste('Incremental TWR for', benchname, sep=' '),
+                      ylabel = paste('Incremental TWR for', asset[i], sep=' '),
+                      range  = range(twr, benchmark, na.rm = TRUE),
+                      main   = assetname[i])
     alpha[i] <- out$alpha
     beta[i]  <- out$beta
 
@@ -213,18 +226,12 @@ for (i in 1:length(asset)) {
     twri[i]  <- prod(twr_asset+1)-1
 
     ## plot histogram of alpha and beta for asset 1
-    hist_nwj(twr_asset, type='nj')
-    qqplot_nwj(twr_asset, type='n')
-    qqplot_nwj(twr_asset, type='j')
+    out <- hist_nwj(twr_asset, type='nj', upperbound=FALSE,
+                    main="Histogram of Incremental Returns")
+    out <- qqplot_nwj(twr_asset, type='n')
+    out <- qqplot_nwj(twr_asset, type='j')
     
 }
-## filter the dataframe with all assets to only include the assets being evaluated
-assetname <- allprice[rownames(allprice) %in% asset,]
-## reorder the list of assets to match the requested order
-assetname <- assetname[match(asset, row.names(assetname)),]
-## extract the asset name
-assetname <- assetname$name
-
 stats <- data.frame(asset,
                     name = assetname,
                     shares = as.numeric(shares), 
@@ -246,23 +253,21 @@ portfolio <- data.frame(asset  = dfname,
                         twr    = twr_portfolio,
                         beta   = beta_portfolio,
                         alpha  = alpha_portfolio)
-statsall <- rbind(stats, portfolio)
-print(statsall)
+stats <- rbind(stats, portfolio)
+print(stats)
 
 ## plot portfolio
 plotspace(1,2)
-out <- plotfit(stats$beta, stats$alpha, stats$asset, nofit=TRUE)
+out <- plotfit(stats$alpha, stats$beta, stats$asset, nofit=TRUE)
 ## xx <- stats[nrow(stats),]$beta
 ## yy <- stats[nrow(stats),]$alpha
 ## color <- as.character(out$legend[nrow(out$legend),]$color)
 ## points(xx, yy, pch=16, col=color)
-out <- plotfit(stats$twr, stats$alpha, stats$asset, nofit=TRUE)
+out <- plotfit(stats$alpha, stats$twr, stats$asset, nofit=TRUE)
 
 ## any correlation between alpha, beta, and twr?
-abtwr <- select(stats, alpha, beta, twr)
+abtwr <- select(stats, twr, alpha, beta)
 pairsdf(abtwr)
-
-
 
 ## ## plot interactive
 ## if (os == 'windows') {
