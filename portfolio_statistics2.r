@@ -73,16 +73,16 @@ security <- unique(data_accounts$Holding)
 
 ##-----------------------------------------------------------------------------
 refreshprice <- TRUE
-if (isTRUE(readprice)) {
+if (isTRUE(refreshprice)) {
     ## get current price info for each security
     allprice <- equityinfo(security, extract=c('Name', 'Previous Close', 'P/E Ratio'))
     names(allprice) <- c('date', 'name', 'close', 'pe_ratio')
     ## replace NA closing value for Cash with 1.0
-    row <- which(grepl('^NA$', row.names(allprice)))
+    narow <- which(grepl('^NA$', row.names(allprice)))
     rownames(allprice)[rownames(allprice) == "NA"] <- "Cash"
-    allprice[row,]$name       <- 'Cash'
+    allprice[narow,]$name       <- 'Cash'
     ## set cash value to 1
-    allprice[row,]$close <- 1
+    allprice[narow,]$close <- 1
     write.csv(allprice, 'out_allprice.csv')
 
 } else {
@@ -94,7 +94,7 @@ if (isTRUE(readprice)) {
 
     
 refreshtwr <- TRUE
-if (isTRUE(readprice)) {
+if (isTRUE(refreshtwr)) {
 
     ## get twr for each security
     ## twr <- equityhistory(security, period='months')  # security[1:50] works, [1:60] does not
@@ -104,8 +104,8 @@ if (isTRUE(readprice)) {
         ## maybe just do 1 at a time for now to keep simple
         cat('i = ', i, 'security =', security[i], '\n')
         if (security[i] == 'Cash') {
-            ## cannot download price info
-            Cash <- 0.001
+            ## cannot download price info  with tiny variation so statistics work later
+            Cash <- rnorm(nrow(alltwr), mean=0, sd=0.00001)
             alltwr <- cbind(alltwr, Cash)
         } else {
             new <- equityhistory(security[i], period='months')  # 50 works, 60 does not
@@ -123,30 +123,39 @@ if (isTRUE(readprice)) {
 
 } else {
     ## read historical twr info from file
-
-  following does not work
-  
-      alltwr2   <- zoo::read.zoo('out_alltwr.csv')
-    benchtwr2 <- zoo::read.zoo('out_benchtwr.csv')
     
-    alltwr   <- xts::as.xts( readall('out_alltwr.csv') )
-    benchtwr <- xts::as.xts( readall('out_benchtwr.csv') )
+    alltwr <- readall('out_alltwr.csv')
+    rownames(alltwr) <- alltwr$Index
+    alltwr$Index     <- NULL
+    alltwr <- xts::as.xts(alltwr)
+    
+    benchtwr <- readall('out_benchtwr.csv')
+    rownames(benchtwr) <- benchtwr$Index
+    benchtwr$Index     <- NULL
+    benchtwr <- xts::as.xts(benchtwr)
+    
 }
 
 
 ##-----------------------------------------------------------------------------
 ## select a unique account or combine accounts for alpha/beta calculation
 unique(data_accounts$Account_Type)
-invest <- subset(data_accounts, data_accounts$Account_Type == "Investment")
-ira    <- subset(data_accounts, data_accounts$Account_Type == "IRA - Traditional")
-inher  <- subset(data_accounts, data_accounts$Account_Type == "IRA - Inherited Traditional")
-roth   <- subset(data_accounts, data_accounts$Account_Type == "IRA - Roth")
-work   <- subset(data_accounts, data_accounts$Account_Type == "403b")
+## split account info by Acount_Type into a list of dataframes
+account <- split(data_accounts, data_accounts$Account_Type)
+names(account)
+## select one to work with
+i <- 1
+dfname <- names(account)[i]
+print(dfname)
+df <- account[[1]]
 
-## select on of the above
-df <- ira
+## ## alternately could have used subset to pull out a single account or combine accounts
+## invest <- subset(data_accounts, data_accounts$Account_Type == "Investment")
+## ira    <- subset(data_accounts, data_accounts$Account_Type == "IRA - Traditional")
+## dfname <- 'ira'
+## df     <- ira
 
-## combine duplicate entries if needed
+## combine duplicate entries if needed and drop columns except for Holding and Shares
 df <- aggregate(df$Shares, by=list(df$Holding), FUN=sum)
 names(df) <- c('Holding', 'Shares')
 
@@ -156,81 +165,104 @@ shares  <- df$Shares
 
 ##-----------------------------------------------------------------------------
 ## get current prices for selected assets
-## pulls our the right assets but not in asset (and shares) orer
+## pulls our the right assets but not in asset (and shares) order
 pricedf <- allprice[row.names(allprice) %in% asset,]
 ## reorder price to match order in asset
-pricedf <- test[match(asset, row.names(pricedf)),]
-price <- pricedf$'P. Close'
+pricedf <- pricedf[match(asset, row.names(pricedf)),]
+price <- pricedf$'close'
 
 ## calculate value and weight of each asset
 value      <- shares * price
 totalvalue <- sum(value)
 weight <- value / totalvalue
 
+## strip out the dates needed for alpha and beta
+## combine twr and benchmarks to line up dates
+both <- cbind(alltwr, benchtwr)
+## select the number of dates requested based on input duration
+both <- xts::last(both, n=12*duration)
+twr       <- both[, 1:ncol(twr)]
+benchmark <- both[,  (ncol(twr)+1):ncol(both)]
+benchmark <- as.numeric( benchmark )
 
-## strip out the dates need for alpha and beta
-twr       <- xts::last(twr, n=12*duration)
-benchmark <- as.numeric( xts::last(outbench$twr$SPY,  n=12*duration) )
-
-
-## ##----------------------
-## ## put twr and SPY into single dataframe then omit NAs
-## combined <- data.frame(twr, benchmark)
-## combined <- na.omit(combined)
-## dates <- row.names(combined)
-## range(dates)
-## years <- ( as.numeric( as.Date(dates[length(dates)]) ) - as.numeric( as.Date(dates[1]) ) ) / 365.25
-## years
-## 
-## ## split back into twr and benchmark
-## lastcol   <- ncol(combined)
-## twr       <- combined[, 1:(lastcol-1)]
-## benchmark <- combined[, lastcol]
-## ##----------------------
+## twr       <- xts::last(alltwr,        n=12*duration)                # keep as xts for now
+## benchmark <- as.numeric( xts::last(benchtwr$SPY,  n=12*duration) )  # converted to vector
 
 ## calculate alpha and beta for each asset
 beta  <- NA
 alpha <- NA
-plotspace(2,2)
+twri  <- NA
 for (i in 1:length(asset)) {
     cat('i =', i, '; asset =', asset[i], '\n')
     twr_asset <- as.numeric(twr[,i])
 
     ## eliminate NAs for this asset / benchmark pair
     dftemp <- na.omit( data.frame(twr_asset, benchmark) )
-    twr_asset <- dftemp[,1]
-    benchmark <- dftemp[,2]
+    twr_asset   <- dftemp[,1]
+    bench_asset <- dftemp[,2]
 
     ## determine alpha and beta for asset i
-    out <- alpha_beta(twr_asset, benchmark, 
+    plotspace(2,2)
+    out <- alpha_beta(twr_asset, bench_asset, 
                       plot = TRUE, ylabel=asset[i],
-                      range = range(twr, benchmark, na.rm = TRUE))
+                      range = range(twr, bench_asset, na.rm = TRUE))
     alpha[i] <- out$alpha
     beta[i]  <- out$beta
+
+    ## determine twr for asset i
+    twri[i]  <- prod(twr_asset+1)-1
+
+    ## plot histogram of alpha and beta for asset 1
+    hist_nwj(twr_asset, type='nj')
+    qqplot_nwj(twr_asset, type='n')
+    qqplot_nwj(twr_asset, type='j')
+    
 }
-stats <- data.frame(asset, 
+## filter the dataframe with all assets to only include the assets being evaluated
+assetname <- allprice[rownames(allprice) %in% asset,]
+## reorder the list of assets to match the requested order
+assetname <- assetname[match(asset, row.names(assetname)),]
+## extract the asset name
+assetname <- assetname$name
+
+stats <- data.frame(asset,
+                    name = assetname,
                     shares = as.numeric(shares), 
                     value=as.numeric(value), 
+                    twr  = twri,
                     beta, 
                     alpha)
+## sort from low to high twr
+stats <- stats[order(stats$twr),]
 
 ## calculate portfolio beta
-beta_portfolio  <- sum( weight * beta )
+beta_portfolio  <- sum( weight * beta  )
 alpha_portfolio <- sum( weight * alpha )
-portfolio <- data.frame(asset  = 'portfolio', 
-               shares = NA, 
-               value  = totalvalue, 
-               beta   = beta_portfolio,
-               alpha  = alpha_portfolio)
-stats <- rbind(stats, portfolio)
-print(stats)
+twr_portfolio   <- sum( weight * twri  )
+portfolio <- data.frame(asset  = dfname, 
+                        name   = 'portfolio',
+                        shares = NA, 
+                        value  = totalvalue, 
+                        twr    = twr_portfolio,
+                        beta   = beta_portfolio,
+                        alpha  = alpha_portfolio)
+statsall <- rbind(stats, portfolio)
+print(statsall)
 
 ## plot portfolio
+plotspace(1,2)
 out <- plotfit(stats$beta, stats$alpha, stats$asset, nofit=TRUE)
-xx <- stats[nrow(stats),]$beta
-yy <- stats[nrow(stats),]$alpha
-color <- as.character(out$legend[nrow(out$legend),]$color)
-points(xx, yy, pch=16, col=color)
+## xx <- stats[nrow(stats),]$beta
+## yy <- stats[nrow(stats),]$alpha
+## color <- as.character(out$legend[nrow(out$legend),]$color)
+## points(xx, yy, pch=16, col=color)
+out <- plotfit(stats$twr, stats$alpha, stats$asset, nofit=TRUE)
+
+## any correlation between alpha, beta, and twr?
+abtwr <- select(stats, alpha, beta, twr)
+pairsdf(abtwr)
+
+
 
 ## ## plot interactive
 ## if (os == 'windows') {
