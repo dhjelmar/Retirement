@@ -1,7 +1,7 @@
-plotxts <- function(xts, legendloc='topleft') {
+plotxts <- function(xts, legendloc='topleft', main=NULL) {
     ## plots every column in the XTS object vs. date and adds a legend
     ylabel  <- deparse(substitute(xts))
-    xts::plot.xts(xts, ylab=ylabel)
+    xts::plot.xts(xts, ylab=ylabel, main=main)
     xts::addLegend(legendloc,
                    legend.names = names(xts), 
                    lty=1,
