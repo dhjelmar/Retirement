@@ -42,8 +42,17 @@ for (f in r_files) {
 ## define duration in years to use for beta and alpha
 duration = 1
 
-data <- readall('all.xlsx', sheet="Assets + Liabilities")
+if (os == 'unix') {
+    file <- 'all.xlsx'
+    data <- readall(file, sheet="Assets + Liabilities")
 
+    ## dlh in xlsx file, change "Holding" to "Symbol"
+    ##                          "Shares"  to "Quantity"
+    
+} else {
+    file <- "F:\\Documents\\01_Dave's Stuff\\Finances\\allocation.xlsx"
+    data <- readall(file, sheet='all assets', header.row.start=2, data.row.start=4)
+}
 
 ## delete non-security info (dlh remove this once clean xlsx)
 data <- data[ (data$Account_Type != '401k (Flour)' &
@@ -51,25 +60,25 @@ data <- data[ (data$Account_Type != '401k (Flour)' &
                data$Account_Type != 'Credit cards' &
                data$Account_Type != 'Primary home' &
                data$Account_Type != 'Vacation home'),]
-data <- data[(data$Holding      != 'SCGE1' &
-               data$Holding      != 'SCGI1' &
-               data$Holding      != 'SCGL1' &
-               data$Holding      != 'SCGN1' &
-               data$Holding      != 'SCGS1' &
-               data$Holding      != 'SCII1'),]
+data <- data[(data$Symbol      != 'SCGE1' &
+               data$Symbol      != 'SCGI1' &
+               data$Symbol      != 'SCGL1' &
+               data$Symbol      != 'SCGN1' &
+               data$Symbol      != 'SCGS1' &
+               data$Symbol      != 'SCII1'),]
 
 
 ## fake SWVXX as Cash (if any)
-data[data$Holding == 'SWVXX',]$Holding <- 'Cash'
+data[data$Symbol == 'SWVXX',]$Symbol <- 'Cash'
 
 ## yahoo uses "-" instead of "." in symbol names so convert
-data$Holding <- gsub("\\.", "-", data$Holding)
+data$Symbol <- gsub("\\.", "-", data$Symbol)
 
 ## strip df to only what is needed to identify unique accounts
-data_accounts <- select(data, c('Owner', 'Account_Type', 'Holding', 'Shares'))
+data_accounts <- select(data, c('Owner', 'Account_Type', 'Symbol', 'Quantity'))
 
 ## identify securities
-security <- unique(data_accounts$Holding)
+security <- unique(data_accounts$Symbol)
 
 ##-----------------------------------------------------------------------------
 refreshprice <- TRUE
@@ -156,13 +165,13 @@ df <- account[[1]]
 ## dfname <- 'ira'
 ## df     <- ira
 
-## combine duplicate entries if needed and drop columns except for Holding and Shares
-df <- aggregate(df$Shares, by=list(df$Holding), FUN=sum)
-names(df) <- c('Holding', 'Shares')
+## combine duplicate entries if needed and drop columns except for Symbol and Quantity
+df <- aggregate(df$Quantity, by=list(df$Symbol), FUN=sum)
+names(df) <- c('Symbol', 'Quantity')
 
 ## convert data to vectors
-asset   <- as.character(df$Holding)
-shares  <- df$Shares
+asset   <- as.character(df$Symbol)
+shares  <- df$Quantity
 
 ##-----------------------------------------------------------------------------
 ## get current prices for selected assets
