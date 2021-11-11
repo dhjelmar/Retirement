@@ -43,36 +43,53 @@ for (f in r_files) {
 duration = 1
 
 if (os == 'unix') {
+    ## only info needed is 'Owner', 'Account_Type', 'Symbol', 'Quantity'
     file <- 'all.xlsx'
     data <- readall(file, sheet="Assets + Liabilities")
 
     ## dlh in xlsx file, change "Holding" to "Symbol"
     ##                          "Shares"  to "Quantity"
+    ## delete non-security info (dlh remove this once clean xlsx)
+    
+    data <- data[(data$Symbol      != 'SCGE1' &
+                  data$Symbol      != 'SCGI1' &
+                  data$Symbol      != 'SCGL1' &
+                  data$Symbol      != 'SCGN1' &
+                  data$Symbol      != 'SCGS1' &
+                  data$Symbol      != 'SCII1'),]
     
 } else {
+    ## only info needed is 'Owner', 'Account_Type', 'Symbol', 'Quantity'
     file <- "F:\\Documents\\01_Dave's Stuff\\Finances\\allocation.xlsx"
-    data <- readall(file, sheet='all assets', header.row.start=2, data.row.start=4)
+    data <- readall(file, sheet='all assets', header.row=2, data.start.row=4)
+    data <- data[which(!is.na(data$account)),]
+    data <- data[which(data$Account_Type != 'Charity'),]
+    data <- data[data$Market_Value != 'N/A',]
+    data[data$Symbol == 'Cash & Cash Investments',]$Symbol <- 'Cash'
+    data[data$Symbol == 'Cash',]$Quantity <- 1.0
+    data$Quantity     <- as.numeric(data$Quantity)
+    data$Market_Value <- as.numeric(data$Market_Value)
 }
 
-## delete non-security info (dlh remove this once clean xlsx)
-data <- data[ (data$Account_Type != '401k (Flour)' &
-               data$Account_Type != 'Bank' &
-               data$Account_Type != 'Credit cards' &
-               data$Account_Type != 'Primary home' &
-               data$Account_Type != 'Vacation home'),]
-data <- data[(data$Symbol      != 'SCGE1' &
-               data$Symbol      != 'SCGI1' &
-               data$Symbol      != 'SCGL1' &
-               data$Symbol      != 'SCGN1' &
-               data$Symbol      != 'SCGS1' &
-               data$Symbol      != 'SCII1'),]
-
-
-## fake SWVXX as Cash (if any)
+## fake money markets as Cash (if any) because yahoo does not seem to have SWVXX or SWYXX
 data[data$Symbol == 'SWVXX',]$Symbol <- 'Cash'
+data[data$Symbol == 'SWYXX',]$Symbol <- 'Cash'
 
-## yahoo uses "-" instead of "." in symbol names so convert
-data$Symbol <- gsub("\\.", "-", data$Symbol)
+## consider a long symbol to be a bond and convert to cash for now; fix later (dlh)
+for (i in 1:nrow(data)) {
+  if (data$Symbol[i] == 'Cash') {
+    data$Quantity[i]     <- data$Market_Value[i]
+    data$Price[i]     <- 1
+  }
+  if (nchar(data$Symbol[i]) > 8) {
+        cat('Modifiying: i=',i, 'symbol=', data$Symbol[i], 'to Cash\n')
+        data$Symbol[i]       <- 'Cash'
+        data$Quantity[i]     <- data$Market_Value[i]
+    }
+}
+
+## yahoo uses "-" instead of "." or "/" in symbol names so convert
+data$Symbol <- gsub("\\.|\\/", "-", data$Symbol)
 
 ## strip df to only what is needed to identify unique accounts
 data_accounts <- select(data, c('Owner', 'Account_Type', 'Symbol', 'Quantity'))
@@ -81,13 +98,13 @@ data_accounts <- select(data, c('Owner', 'Account_Type', 'Symbol', 'Quantity'))
 security <- unique(data_accounts$Symbol)
 
 ##-----------------------------------------------------------------------------
-refreshprice <- TRUE
+refreshprice <- FALSE
 if (isTRUE(refreshprice)) {
     ## get current price info for each security
     allprice <- equityinfo(security, extract=c('Name', 'Previous Close', 'P/E Ratio'))
     names(allprice) <- c('date', 'name', 'close', 'pe_ratio')
-    ## replace NA closing value for Cash with 1.0
-    narow <- which(grepl('^NA$', row.names(allprice)))
+    ## replace NA closing value for Cash with 1 (individual bonds will also fall into this)
+    narow <- which(is.na(allprice$close))
     rownames(allprice)[rownames(allprice) == "NA"] <- "Cash"
     allprice[narow,]$name       <- 'Cash'
     ## set cash value to 1
@@ -121,6 +138,9 @@ if (isTRUE(refreshtwr)) {
             alltwr <- cbind(alltwr, new$twr)     # xts cbind nicely lines up dates
         }
     }
+    ## correct symbols to be consistent with allprice if needed
+    symbols <- gsub("\\.|\\/", "-", names(alltwr))
+    names(alltwr) <- symbols
     ## strip off 1st column
     alltwr$alltwr <- NULL 
     tail(alltwr)
@@ -129,7 +149,10 @@ if (isTRUE(refreshtwr)) {
     ## get twr for the benchmark
     benchname <- 'SPY'
     benchtwr <- equityhistory(benchname, period='months')$twr
-    zoo::write.zoo(outbench, 'out_benchtwr.csv', sep=',')
+    ## correct symbols to be consistent with allprice if needed
+    symbols <- gsub("\\.|\\/", "-", names(benchtwr))
+    names(benchtwr) <- symbols
+    zoo::write.zoo(benchtwr, 'out_benchtwr.csv', sep=',')
 
 } else {
     ## read historical twr info from file
@@ -154,7 +177,7 @@ unique(data_accounts$Account_Type)
 account <- split(data_accounts, data_accounts$Account_Type)
 names(account)
 ## select one to work with
-i <- 1
+i <- 4
 dfname <- names(account)[i]
 print(dfname)
 df <- account[[1]]
@@ -211,7 +234,7 @@ assetname <- assetname$name
 beta  <- NA
 alpha <- NA
 twri  <- NA
-for (i in 1:length(asset)) {
+for (i in 1:length(asset)) {                             # dlh error with i=19 asset[i]='HEI-A"
     cat('i =', i, '; asset =', asset[i], '\n')
     twr_asset <- as.numeric(twr[,i])
 
@@ -220,14 +243,31 @@ for (i in 1:length(asset)) {
     twr_asset   <- dftemp[,1]
     bench_asset <- dftemp[,2]
 
+    plotspace(3,2)
+    
+    ## plot incremental and cumulative returns
+    dates <- zoo::index(twr)
+    rownames(dftemp) <- dates
+    colnames(dftemp) <- c(asset[i], benchname)
+    xtsinc <- xts::as.xts(dftemp)
+    print( plotxts(xtsinc, main="Incremental TWR") )    # oddly "print" is needed in a loop
+    xtscum <- cumprod(xtsinc+1)-1
+    print( plotxts(xtscum, main="Cumulative TWR") )
+    
+    
     ## determine alpha and beta for asset i
-    plotspace(2,2)
     out <- alpha_beta(twr_asset, bench_asset, 
                       plot = TRUE, 
                       xlabel = paste('Incremental TWR for', benchname, sep=' '),
                       ylabel = paste('Incremental TWR for', asset[i], sep=' '),
                       range  = range(twr, benchmark, na.rm = TRUE),
                       main   = assetname[i])
+    twrcum   <- prod(twr_asset + 1) - 1
+    benchcum <- prod(bench_asset + 1) - 1
+    mtext(paste('TWR Cum = ', signif(twrcum,4)*100, '%;',
+                'Benchmark Cum = ', signif(benchcum, 4)*100, '%',
+                sep=''), 
+          side=3, line=0, cex=0.75)
     alpha[i] <- out$alpha
     beta[i]  <- out$beta
 
@@ -237,6 +277,7 @@ for (i in 1:length(asset)) {
     ## plot histogram of alpha and beta for asset 1
     out <- hist_nwj(twr_asset, type='nj', upperbound=FALSE,
                     main="Histogram of Incremental Returns")
+    abline(v=mean(twr_asset), col='red', lwd=1)
     out <- qqplot_nwj(twr_asset, type='n')
     out <- qqplot_nwj(twr_asset, type='j')
     
