@@ -1,2 +1,2 @@
-import modules.medicare as medicare
-import modules.tax as tax
+from modules.medicare import medicare
+from modules.tax import tax
