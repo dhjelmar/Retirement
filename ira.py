@@ -52,7 +52,7 @@ def scenario(max_taxable, roi, start, year, age, income, ira_value):
             federal, state = my.tax(taxable)
 
             # medicare cost
-            agi_medicare = income[i-2] + ira_convert[i-2]
+            agi_medicare = income[i-2] + rmd[i-2] + ira_convert[i-2]
             if age[i] < 65:
                 med = 0
             else:
