@@ -5,9 +5,10 @@ import matplotlib.pyplot as plt
 import modules as my
 
 #%%
-def scenario(max_taxable, start, year, age, income, ira_value, ira_convert):
+def scenario(max_taxable, roi, start, year, age, income, ira_value):
     '''
     max_taxable = value to keep income below
+    roi         = return on investment used to increase ira_value following start year
     start       = first year for evaluation
     year        = list of years for income;
                   need to include 2 years before start for medicare cost
@@ -30,8 +31,8 @@ def scenario(max_taxable, start, year, age, income, ira_value, ira_convert):
             # determine RMD based on prior EOY IRA value for current year age
             rmd.append(my.rmd(ira_remaining, age[i]))
             
-            # subtract RMD from ira_remaining
-            ira_remaining = ira_remaining - rmd[i]
+            # increase IRA remaining value for growth then subtract RMD
+            ira_remaining = (1+roi)*ira_remaining - rmd[i]
             
             # determine how much of traditional IRA to convert to keep total income below max_taxable
             convert = max_taxable - (income[i] + rmd[i])
@@ -62,7 +63,7 @@ def scenario(max_taxable, start, year, age, income, ira_value, ira_convert):
             cumcost = cumcost + cost
 
             # save results
-            mylist.append({'year':year[i], 'age':age[i], 'income':income[i], 'rmd':rmd[i],
+            mylist.append({'max_taxable':max_taxable, 'year':year[i], 'age':age[i], 'income':income[i], 'rmd':rmd[i],
                             'ira_convert':ira_convert[i], 'taxable':taxable, 'ira_remaining':ira_remaining,
                             'federal':round(federal), 'state':round(state), 'tax':round(federal+state),
                             'agi medicare':agi_medicare, 'medicare':round(med),
@@ -85,52 +86,43 @@ for i,a in enumerate(age):
     elif a > 72:
         social_security = 44000 + 54000
     income[i] = income[i] + social_security
-ira_value = 1E6
+schwab = 900 + 149 + 64
+chemung = 437
+kapl = 190 + 180 + 145
+trowe = 109
+ira_value = (schwab + chemung + kapl + trowe) * 1000
 start = 2025
+roi = 0.05    # return on investment used to increase IRA value with time
 
-#%%
-# scenario 1: convert entire IRA in start year
-ira_convert = [     0,      0,    1E6,      0] + (years-4)*[0]
-max_taxable = 1E9
-scenario1 = scenario(max_taxable, start, year, age, income, ira_value, ira_convert)
-scenario1
 # %%
+myscenario = []
+for max_taxable in [1E9, 395000, 350000, 300000, 250000, 207000, 150000, 97000]:
+    myscenario.append(scenario(max_taxable, roi, start, year, age, income, ira_value))
 
 #%%
-# scenario 2: keep taxable income below $395k
-max_taxable = 395000
-scenario2 = scenario(max_taxable, start, year, age, income, ira_value, ira_convert)
-scenario2
-
-#%%
-# scenario 3: keep taxable income below $207k
-max_taxable = 207000
-scenario3 = scenario(max_taxable, start, year, age, income, ira_value, ira_convert)
-scenario3
-
-#%%
-# scenario 4: keep taxable income below $150k
-max_taxable = 150000
-scenario4 = scenario(max_taxable, start, year, age, income, ira_value, ira_convert)
-scenario4
-
-#%%
-# scenario 5: keep taxable income below $97k
-max_taxable = 97000
-scenario5 = scenario(max_taxable, start, year, age, income, ira_value, ira_convert)
-scenario5
-
-#%%
-plt.plot(scenario1.year, scenario1.cumcost, label='convert all in 2025')
-plt.plot(scenario2.year, scenario2.cumcost, label='convert to keep taxable < $395k')
-plt.plot(scenario3.year, scenario3.cumcost, label='convert to keep taxable < $207k')
-plt.plot(scenario4.year, scenario4.cumcost, label='convert to keep taxable < $150k')
-plt.plot(scenario5.year, scenario5.cumcost, label='convert to keep taxable <  $97k')
+# Cumulative cost of taxes and medicare
+for i in range(0,len(myscenario)):
+    df = myscenario[i]
+    plt.plot(df.year, df.cumcost, label=str(i)+'. income limit: '+str(round(df.max_taxable[0])))
 plt.xlabel('year')
 plt.ylabel('cumultive cost')
-plt.title('IRA Conversion and Medicare Costs')
+plt.title('Taxes and Medicare Costs')
+plt.legend
 plt.legend() # Displays the labels for each line
-
-# Display the plot
 plt.show()
+
+#%%
+# Taxable income (not counting Roth withdrawals)
+for i in range(0,len(myscenario)):
+    df = myscenario[i]
+    plt.plot(df.year, df.taxable, label=str(i)+'. income limit: '+str(round(df.max_taxable[0])))
+plt.ylim(100000, 500000)
+plt.xlabel('year')
+plt.ylabel('Taxable Income')
+plt.title('Taxable Income')
+plt.legend() # Displays the labels for each line
+plt.show()
+
+#%%
+myscenario[3]   # printout selected scenario #
 #%%
