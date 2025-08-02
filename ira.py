@@ -21,6 +21,7 @@ def scenario(max_taxable, roi, start, year, age, income, ira_value):
     rmd = []
     ira_convert = []
     mylist = []
+    pv = []       # present value (pv = fv / (1+r)^n)
     ira_remaining = ira_value
     cumcost = 0
     for i,yr in enumerate(year):
@@ -77,7 +78,7 @@ def scenario(max_taxable, roi, start, year, age, income, ira_value):
 
 #%%
 # commone to all scenarios
-years = 40
+years = 42
 year        = range(2023, 2023+years, 1)
 age = np.array(year) - 1964
 #                2023,   2024,   2025,   2026]
@@ -95,7 +96,7 @@ kapl = 190 + 180 + 145
 trowe = 109
 ira_value = (schwab + chemung + kapl + trowe) * 1000
 start = 2025
-roi = 0.05    # return on investment used to increase IRA value with time
+roi = 0.09    # return on investment used to increase IRA value with time
 
 # %%
 myscenario = []
