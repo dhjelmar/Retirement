@@ -62,12 +62,15 @@ def scenario(max_taxable, roi, start, year, age, income, ira_value):
             cost = federal + state + med
             cumcost = cumcost + cost
 
+            # spending money
+            spending = taxable - cost
+
             # save results
             mylist.append({'max_taxable':max_taxable, 'year':year[i], 'age':age[i], 'income':income[i], 'rmd':rmd[i],
                             'ira_convert':ira_convert[i], 'taxable':taxable, 'ira_remaining':ira_remaining,
                             'federal':round(federal), 'state':round(state), 'tax':round(federal+state),
                             'agi medicare':agi_medicare, 'medicare':round(med),
-                            'cost':round(cost), 'cumcost':round(cumcost)})
+                            'cost':round(cost), 'cumcost':round(cumcost), 'spending':round(spending)})
         
     df = pd.DataFrame(mylist)
     return df
