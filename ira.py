@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import modules as my
 
 #%%
-def scenario(max_taxable, marr, roi, start, year, age, income, ira_value):
+def scenario(max_taxable, marr, roi, start, year, age, income, ira_value, heir_yob, heir_income):
     '''
     max_taxable = value to keep income below
     roi         = return on investment used to increase ira_value following start year
@@ -18,12 +18,13 @@ def scenario(max_taxable, marr, roi, start, year, age, income, ira_value):
     rmd         = list of RMDs
     ira_convert = list of planned conversions from regular IRA to Roth
     '''
+    heir_age = year[0] - heir_yob
     rmd = []
     ira_convert = []
     mylist = []
-    pv = []       # present value (pv = fv / (1+r)^n)
     ira_remaining = ira_value
     cumcost = 0
+    cumpv = 0       # present value (pv = fv / (1+r)^n)
     for i,yr in enumerate(year):
         if yr < start:
             rmd.append(0.)
@@ -63,9 +64,14 @@ def scenario(max_taxable, marr, roi, start, year, age, income, ira_value):
             cost = federal + state + med
             cumcost = cumcost + cost
 
-            # spending money
+            # spending money, PV contribution from year i, cumulative pv from contributions
             spending = taxable - cost
-            pv = spending /( 1 + marr )**(yr-start)
+            pvi = spending /( 1 + marr )**(yr-start)
+            cumpv = cumpv + pvi
+
+            # pv if add 10 year withdrawal of remaining IRA after taxes
+            distributions, pvcalc = my.pv_estate(ira_remaining, heir_income, heir_age, marr, factor='min')
+            pv = cumpv + pvcalc
 
             # save results
             mylist.append({'max_taxable':max_taxable, 'marr':marr, 'roi':roi, 
@@ -73,7 +79,8 @@ def scenario(max_taxable, marr, roi, start, year, age, income, ira_value):
                             'ira_convert':ira_convert[i], 'taxable':taxable, 'ira_remaining':ira_remaining,
                             'federal':round(federal), 'state':round(state), 'tax':round(federal+state),
                             'agi medicare':agi_medicare, 'medicare':round(med),
-                            'cost':round(cost), 'cumcost':round(cumcost), 'spending':round(spending), 'pv':pv})
+                            'cost':round(cost), 'cumcost':round(cumcost), 'spending':round(spending), 
+                            'pvi':pvi, 'pv':pv})
         
     df = pd.DataFrame(mylist)
     return df
@@ -100,12 +107,14 @@ ira_value = (schwab + chemung + kapl + trowe) * 1000
 start = 2025
 marr = 0.07  # minimum acceptable rate of return
 roi = marr    # return on investment used to increase IRA value with time
+heir_yob = 1996
+heir_income = 150000
 
 # %%
 myscenario = []
 summary = []
 for max_taxable in [1E9, 500000, 395000, 350000, 300000, 250000, 207000, 150000, 97000]:
-    df = scenario(max_taxable, marr, roi, start, year, age, income, ira_value)
+    df = scenario(max_taxable, marr, roi, start, year, age, income, ira_value, heir_yob, heir_income)
     myscenario.append(df)
     summary.append({'max_taxable':max_taxable, 'marr':marr, 'roi':roi, 'cumcost':df.cost.sum(), 'pv':df.pv.sum()})
 dfsum = pd.DataFrame(summary)

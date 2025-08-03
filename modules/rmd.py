@@ -2,6 +2,7 @@
 import pandas as pd
 import os
 rmd_uniform_life_table = pd.read_csv(os.path.join('input', 'rmd_uniform_life.csv'))
+rmd_uniform_life_table.columns = rmd_uniform_life_table.columns.str.strip()   # remove leading and trailing spaces
 
 def rmd(value, age, out='rmd', rmd_uniform_life_table=rmd_uniform_life_table):
     if age < 73:
@@ -9,7 +10,6 @@ def rmd(value, age, out='rmd', rmd_uniform_life_table=rmd_uniform_life_table):
         rmd = 0
     else:
         df = rmd_uniform_life_table
-        df.columns = df.columns.str.strip()   # remove leading and trailing spaces
         factor = df.loc[df.age==age,'factor'].iloc[0]
     if out == 'factor':
         return factor
