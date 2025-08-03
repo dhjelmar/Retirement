@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import modules as my
 
 #%%
-def scenario(max_taxable, roi, start, year, age, income, ira_value):
+def scenario(max_taxable, marr, roi, start, year, age, income, ira_value):
     '''
     max_taxable = value to keep income below
     roi         = return on investment used to increase ira_value following start year
@@ -65,13 +65,15 @@ def scenario(max_taxable, roi, start, year, age, income, ira_value):
 
             # spending money
             spending = taxable - cost
+            pv = spending /( 1 + marr )**(yr-start)
 
             # save results
-            mylist.append({'max_taxable':max_taxable, 'year':year[i], 'age':age[i], 'income':income[i], 'rmd':rmd[i],
+            mylist.append({'max_taxable':max_taxable, 'marr':marr, 'roi':roi, 
+                           'year':year[i], 'age':age[i], 'income':income[i], 'rmd':rmd[i],
                             'ira_convert':ira_convert[i], 'taxable':taxable, 'ira_remaining':ira_remaining,
                             'federal':round(federal), 'state':round(state), 'tax':round(federal+state),
                             'agi medicare':agi_medicare, 'medicare':round(med),
-                            'cost':round(cost), 'cumcost':round(cumcost), 'spending':round(spending)})
+                            'cost':round(cost), 'cumcost':round(cumcost), 'spending':round(spending), 'pv':pv})
         
     df = pd.DataFrame(mylist)
     return df
@@ -96,37 +98,43 @@ kapl = 190 + 180 + 145
 trowe = 109
 ira_value = (schwab + chemung + kapl + trowe) * 1000
 start = 2025
-roi = 0.09    # return on investment used to increase IRA value with time
+marr = 0.07  # minimum acceptable rate of return
+roi = marr    # return on investment used to increase IRA value with time
 
 # %%
 myscenario = []
-for max_taxable in [1E9, 395000, 350000, 300000, 250000, 207000, 150000, 97000]:
-    myscenario.append(scenario(max_taxable, roi, start, year, age, income, ira_value))
+summary = []
+for max_taxable in [1E9, 500000, 395000, 350000, 300000, 250000, 207000, 150000, 97000]:
+    df = scenario(max_taxable, marr, roi, start, year, age, income, ira_value)
+    myscenario.append(df)
+    summary.append({'max_taxable':max_taxable, 'marr':marr, 'roi':roi, 'cumcost':df.cost.sum(), 'pv':df.pv.sum()})
+dfsum = pd.DataFrame(summary)
+dfsum
 
 #%%
 # Cumulative cost of taxes and medicare
 for i in range(0,len(myscenario)):
     df = myscenario[i]
-    plt.plot(df.year, df.cumcost, label=str(i)+'. income limit: '+str(round(df.max_taxable[0])))
-plt.xlabel('year')
+    plt.plot(df.age, df.cumcost, label=str(i)+'. limit: '+str(round(df.max_taxable[0]/1000))+'; PV='+str(round(dfsum.pv[i]/1000)))
+plt.xlabel('age')
 plt.ylabel('cumultive cost')
-plt.title('Taxes and Medicare Costs')
+plt.title('Taxes and Medicare Costs; MARR='+str(marr)+'; ROI='+str(roi))
 plt.legend
-plt.legend() # Displays the labels for each line
+plt.legend(fontsize=8) # Displays the labels for each line
 plt.show()
 
 #%%
 # Taxable income (not counting Roth withdrawals)
 for i in range(0,len(myscenario)):
     df = myscenario[i]
-    plt.plot(df.year, df.taxable, label=str(i)+'. income limit: '+str(round(df.max_taxable[0])))
-plt.ylim(100000, 500000)
-plt.xlabel('year')
+    plt.plot(df.age, df.taxable, label=str(i)+'. limit: '+str(round(df.max_taxable[0]/1000))+'; PV='+str(round(dfsum.pv[i]/1000)))
+plt.ylim(100000, 600000)
+plt.xlabel('age')
 plt.ylabel('Taxable Income')
-plt.title('Taxable Income')
-plt.legend() # Displays the labels for each line
+plt.title('Taxable Income; MARR='+str(marr)+'; ROI='+str(roi))
+plt.legend(fontsize=8) # Displays the labels for each line
 plt.show()
 
 #%%
-myscenario[3]   # printout selected scenario #
+myscenario[1]   # printout selected scenario #
 #%%
