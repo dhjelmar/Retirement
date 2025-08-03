@@ -145,5 +145,17 @@ plt.legend(fontsize=8) # Displays the labels for each line
 plt.show()
 
 #%%
-myscenario[1]   # printout selected scenario #
+# PV
+for i in range(0,len(myscenario)):
+    df = myscenario[i]
+    plt.plot(df.age, df.pv, label=str(i)+'. limit: '+str(round(df.max_taxable[0]/1000))+'; PV='+str(round(dfsum.pv[i]/1000)))
+#plt.ylim(100000, 600000)
+plt.xlabel('age')
+plt.ylabel('PV')
+plt.title('Present Value; MARR='+str(marr)+'; ROI='+str(roi))
+plt.legend(fontsize=8) # Displays the labels for each line
+plt.show()
+
+#%%
+myscenario[2]   # printout selected scenario #
 #%%
