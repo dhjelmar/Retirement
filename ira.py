@@ -2,6 +2,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 import modules as my
 
 #%%
@@ -99,11 +100,7 @@ for i,a in enumerate(age):
     elif a > 72:
         social_security = 44000 + 54000
     income[i] = income[i] + social_security
-schwab = 900 + 149 + 64
-chemung = 437
-kapl = 190 + 180 + 145
-trowe = 109
-ira_value = (schwab + chemung + kapl + trowe) * 1000
+ira_value = 2E6
 start = 2025
 marr = 0.07  # minimum acceptable rate of return
 roi = marr    # return on investment used to increase IRA value with time
@@ -115,10 +112,11 @@ myscenario = []
 summary = []
 for max_taxable in [1E9, 500000, 395000, 350000, 300000, 250000, 207000, 150000, 97000]:
     df = scenario(max_taxable, marr, roi, start, year, age, income, ira_value, heir_yob, heir_income)
+    df.to_csv(os.path.join('output', 'ira_out_'+str(max_taxable)+'.csv'))
     myscenario.append(df)
     summary.append({'max_taxable':max_taxable, 'marr':marr, 'roi':roi, 'cumcost':df.cost.sum(), 'pv':df.pv.sum()})
 dfsum = pd.DataFrame(summary)
-dfsum
+dfsum.to_csv(os.path.join('output', 'ira_out.csv'))
 
 #%%
 # Cumulative cost of taxes and medicare
