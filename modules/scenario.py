@@ -1,7 +1,7 @@
 import pandas as pd
 import modules as my
 
-def scenario(max_taxable, marr, roi, start, year, age, income, ira_value, heir_yob, heir_income):
+def scenario(max_taxable, marr, roi, inflation, start, year, age, income, ira_value, heir_yob, heir_income, heir_factor):
     '''
     max_taxable = value to keep income below
     roi         = return on investment used to increase ira_value following start year
@@ -13,7 +13,15 @@ def scenario(max_taxable, marr, roi, start, year, age, income, ira_value, heir_y
     ira_value   = value of traditional IRA in start year
     rmd         = list of RMDs
     ira_convert = list of planned conversions from regular IRA to Roth
+    heir_yob   = year of birth of heir
+    heir_income = income of heir
+    heir_factor = factor to use for RMD calculation; 'min' uses IRS single life expectancy table
     '''
+    year = pd.Series(year)
+    age = pd.Series(age)
+    income = pd.Series(income)
+
+    marr_real = (1 + marr) / (1 + inflation) - 1  # real rate of return after inflation
     heir_age = year[0] - heir_yob
     rmd = []
     ira_convert = []
@@ -62,15 +70,16 @@ def scenario(max_taxable, marr, roi, start, year, age, income, ira_value, heir_y
 
             # spending money, PV contribution from year i, cumulative pv from contributions
             spending = taxable - cost
-            pvi = spending /( 1 + marr )**(yr-start)
+            pvi = spending /( 1 + marr_real )**(yr-start)
             cumpv = cumpv + pvi
 
             # pv if add 10 year withdrawal of remaining IRA after taxes
-            distributions, pvcalc = my.pv_estate(ira_remaining, heir_income, heir_age, marr, factor='min')
+            distributions, pvcalc = my.pv_estate(ira_remaining, heir_income, heir_age, roi, marr, heir_factor=heir_factor)
+
             pv = cumpv + pvcalc
 
             # save results
-            mylist.append({'max_taxable':max_taxable, 'marr':marr, 'roi':roi, 
+            mylist.append({'max_taxable':max_taxable, 'marr':marr, 'roi':roi, 'inflation':inflation,
                            'year':year[i], 'age':age[i], 'income':income[i], 'rmd':rmd[i],
                             'ira_convert':ira_convert[i], 'taxable':taxable, 'ira_remaining':ira_remaining,
                             'federal':round(federal), 'state':round(state), 'tax':round(federal+state),

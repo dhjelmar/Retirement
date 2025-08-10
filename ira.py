@@ -23,17 +23,20 @@ ira_value = 2E6
 start = 2025
 marr = 0.07  # minimum acceptable rate of return
 roi = marr    # return on investment used to increase IRA value with time
+inflation = 0.0215
 heir_yob = 1996
 heir_income = 150000
+heir_factor = 'min'  # factor to use for RMD calculation; 'min' uses IRS single life expectancy table
+heir_factor = 5  # or maybe a bit lower would withdraw a more even amount each year over 10 years to minimize taxes
 
 # %%
 scenario_out = []
 summary = []
 for max_taxable in [1E9, 500000, 395000, 350000, 300000, 250000, 207000, 150000, 97000]:
-    df = my.scenario(max_taxable, marr, roi, start, year, age, income, ira_value, heir_yob, heir_income)
+    df = my.scenario(max_taxable, marr, roi, inflation, start, year, age, income, ira_value, heir_yob, heir_income, heir_factor)
     df.to_csv(os.path.join('output', 'ira_out_'+str(max_taxable)+'.csv'))
     scenario_out.append(df)
-    summary.append({'max_taxable':max_taxable, 'marr':marr, 'roi':roi, 'cumcost':df.cost.sum(), 'pv':df.pv.sum()})
+    summary.append({'max_taxable':max_taxable, 'marr':marr, 'roi':roi, 'inflation':inflation, 'cumcost':df.cost.sum(), 'pv':df.pv.sum()})
 dfsum = pd.DataFrame(summary)
 dfsum.to_csv(os.path.join('output', 'ira_out.csv'))
 
@@ -44,7 +47,7 @@ for i in range(0,len(scenario_out)):
     plt.plot(df.age, df.cumcost, label=str(i)+'. limit: '+str(round(df.max_taxable[0]/1000))+'; PV='+str(round(dfsum.pv[i]/1000)))
 plt.xlabel('age')
 plt.ylabel('cumultive cost')
-plt.title('Taxes and Medicare Costs; MARR='+str(marr)+'; ROI='+str(roi))
+plt.title('Taxes and Medicare Costs; MARR='+str(marr)+'; ROI='+str(roi)+'; Inflation='+str(inflation))
 plt.legend
 plt.legend(fontsize=8) # Displays the labels for each line
 plt.show()
@@ -57,7 +60,7 @@ for i in range(0,len(scenario_out)):
 plt.ylim(100000, 600000)
 plt.xlabel('age')
 plt.ylabel('Taxable Income')
-plt.title('Taxable Income; MARR='+str(marr)+'; ROI='+str(roi))
+plt.title('Taxable Income; MARR='+str(marr)+'; ROI='+str(roi)+'; Inflation='+str(inflation))
 plt.legend(fontsize=8) # Displays the labels for each line
 plt.show()
 
@@ -69,7 +72,7 @@ for i in range(0,len(scenario_out)):
 #plt.ylim(100000, 600000)
 plt.xlabel('age')
 plt.ylabel('PV')
-plt.title('Present Value; MARR='+str(marr)+'; ROI='+str(roi))
+plt.title('Present Value; MARR='+str(marr)+'; ROI='+str(roi)+'; Inflation='+str(inflation))
 plt.legend(fontsize=8) # Displays the labels for each line
 plt.show()
 

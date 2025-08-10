@@ -1,8 +1,8 @@
-name: base
+name: mypy
 channels:
   - defaults
 dependencies:
-  - python
+  - python=3.9
   - pandas
   - numpy
-  - os
+  - matplotlib
