@@ -20,6 +20,8 @@ for i,a in enumerate(age):
         social_security = 44000 + 54000
     income[i] = income[i] + social_security
 ira_value = 2E6
+roth_value = 2E6
+spending = 300000 # starting spending value to be increased with inflation
 start = 2025
 marr = 0.07  # minimum acceptable rate of return
 roi = marr    # return on investment used to increase IRA value with time
@@ -33,10 +35,10 @@ heir_factor = 5  # or maybe a bit lower would withdraw a more even amount each y
 scenario_out = []
 summary = []
 for max_taxable in [1E9, 500000, 395000, 350000, 300000, 250000, 207000, 150000, 97000]:
-    df = my.scenario(max_taxable, marr, roi, inflation, start, year, age, income, ira_value, heir_yob, heir_income, heir_factor)
+    df = my.scenario(spending, max_taxable, marr, roi, inflation, start, year, age, income, ira_value, heir_yob, heir_income, heir_factor)
     df.to_csv(os.path.join('output', 'ira_out_'+str(max_taxable)+'.csv'))
     scenario_out.append(df)
-    summary.append({'max_taxable':max_taxable, 'marr':marr, 'roi':roi, 'inflation':inflation, 'cumcost':df.cost.sum(), 'pv':df.pv.sum()})
+    summary.append({'spending':spending, 'max_taxable':max_taxable, 'marr':marr, 'roi':roi, 'inflation':inflation, 'cumcost':df.cost.sum(), 'pv':df.pv.sum()})
 dfsum = pd.DataFrame(summary)
 dfsum.to_csv(os.path.join('output', 'ira_out.csv'))
 

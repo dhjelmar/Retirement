@@ -1,8 +1,9 @@
 import pandas as pd
 import modules as my
 
-def scenario(max_taxable, marr, roi, inflation, start, year, age, income, ira_value, heir_yob, heir_income, heir_factor):
+def scenario(spending, max_taxable, marr, roi, inflation, start, year, age, income, ira_value, heir_yob, heir_income, heir_factor):
     '''
+    spending    = starting planned spending to be increased with inflation
     max_taxable = value to keep income below
     roi         = return on investment used to increase ira_value following start year
     start       = first year for evaluation
@@ -68,8 +69,14 @@ def scenario(max_taxable, marr, roi, inflation, start, year, age, income, ira_va
             cost = federal + state + med
             cumcost = cumcost + cost
 
-            # spending money, PV contribution from year i, cumulative pv from contributions
+            # spending money
             spending = taxable - cost
+
+            # if spending is less than planned spending, take extra needed from Roth or investment account
+            # if spending is > planned spending, then put into investment account
+            #      NOT PROGRAMMED YET
+
+            # PV contribution from year i, cumulative pv from contributions
             pvi = spending /( 1 + marr_real )**(yr-start)
             cumpv = cumpv + pvi
 
