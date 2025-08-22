@@ -1,7 +1,9 @@
 import pandas as pd
 import modules as my
 
-def scenario(spending, max_taxable, marr, roi, inflation, start, year, age, income, ira_value, heir_yob, heir_income, heir_factor):
+def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
+             income, ira_value, roth_value, savings_value,
+             heir_yob, heir_income, heir_factor):
     '''
     spending    = starting planned spending to be increased with inflation
     max_taxable = value to keep income below
@@ -28,7 +30,9 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age, inco
     ira_convert = []
     mylist = []
     ira_remaining = ira_value
-    cumcost = 0
+    roth_remaining = roth_value
+    savings_remaining = savings_value
+    cumexpenses = 0
     cumpv = 0       # present value (pv = fv / (1+r)^n)
     for i,yr in enumerate(year):
         if yr < start:
@@ -65,33 +69,57 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age, inco
             else:
                 med = my.medicare(agi_medicare)
 
-            # total cost of federal tax, state tax, and medicare
-            cost = federal + state + med
-            cumcost = cumcost + cost
+            # total expenses of federal tax, state tax, and medicare and planned spending
+            expenses = federal + state + med + spending * (1 + inflation)**(yr-start)
+            cumexpenses = cumexpenses + expenses
 
-            # spending money
-            spending = taxable - cost
-
-            # if spending is less than planned spending, take extra needed from Roth or investment account
-            # if spending is > planned spending, then put into investment account
-            #      NOT PROGRAMMED YET
+            # add extra income to savings
+            income_extra = taxable - expenses
+            savings_remaining = savings_remaining + income_extra
+            income_extra = 0
+            if savings_remaining < 0:
+                # insufficient savings to cover expenses so take from Roth IRA first
+                take = - savings_remaining
+                roth_remaining = roth_remaining - take
+                savings_remaining = 0
+                if roth_remaining < 0:
+                    print ('Not enough savings or Roth to cover expenses in year', yr, 'age', age[i], 'income', income[i], 'expenses', expenses)
+                    # withdraw from IRA and refigure taxes
+                    take = - roth_remaining
+                    roth_remaining = 0
+                    ira_remaining = ira_remaining - take
+                    if ira_remaining < 0:
+                        print('#############################')
+                        print('########### BROKE ###########')
+                        print('#############################')
+                        ira_remaining = ira_remaining + take
+                        federal, state = my.tax(taxable + ira_remaining)
+                        ira_remaining = 0
+                        expenses = federal + state + med + spending * (1 + inflation)**(yr-start)
+                        cumexpenses = cumexpenses + expenses
+                    else:
+                        federal, state = my.tax(taxable + take)
+                        cumexpenses = cumexpenses - expenses
+                        expenses = federal + state + med + spending * (1 + inflation)**(yr-start)
+                        cumexpenses = cumexpenses + expenses   # updated with new expenses
 
             # PV contribution from year i, cumulative pv from contributions
-            pvi = spending /( 1 + marr_real )**(yr-start)
+            pvi = income_extra /( 1 + marr_real )**(yr-start)
             cumpv = cumpv + pvi
 
             # pv if add 10 year withdrawal of remaining IRA after taxes
-            distributions, pvcalc = my.pv_estate(ira_remaining, heir_income, heir_age, roi, marr, heir_factor=heir_factor)
-
+            distributions, pvcalc = my.pv_estate(ira_remaining, roth_remaining, savings_remaining,
+                                                  heir_income, heir_age, roi, marr, heir_factor=heir_factor)
             pv = cumpv + pvcalc
 
             # save results
             mylist.append({'max_taxable':max_taxable, 'marr':marr, 'roi':roi, 'inflation':inflation,
                            'year':year[i], 'age':age[i], 'income':income[i], 'rmd':rmd[i],
-                            'ira_convert':ira_convert[i], 'taxable':taxable, 'ira_remaining':ira_remaining,
+                            'ira_convert':ira_convert[i], 'taxable':taxable, 
+                            'ira_remaining':ira_remaining, 'roth_remaining':roth_remaining, 'savings_remaining':savings_remaining,
                             'federal':round(federal), 'state':round(state), 'tax':round(federal+state),
                             'agi medicare':agi_medicare, 'medicare':round(med),
-                            'cost':round(cost), 'cumcost':round(cumcost), 'spending':round(spending), 
+                            'expenses':round(expenses), 'cumexpenses':round(cumexpenses), 'spending':round(spending), 
                             'pvi':pvi, 'pv':pv})
         
     df = pd.DataFrame(mylist)
