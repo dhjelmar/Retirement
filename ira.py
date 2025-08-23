@@ -29,7 +29,7 @@ for i,a in enumerate(age):
 savings_value = 2E5    # starting value of savings account
 ira_value     = 2E6    # starting value of traditional IRA
 roth_value    = 2E6    # starting value of Roth IRA
-spending      = 300000 # starting amount of planned spending to be increased with inflation
+spending      = 200000 # starting amount of planned spending to be increased with inflation
 start         = 2025   # start year for evaluation; need to include 2 years of income before start for medicare cost
 marr          = 0.07   # minimum acceptable rate of return
 roi           = marr   # return on investment used to increase IRA value with time
@@ -43,24 +43,27 @@ heir_factor   = 5      # or some #<10 to withdraw a more even amount each year t
 # run scenario with different maximum taxable income limits
 scenario_out = []
 summary = []
-for max_taxable in [1E9, 500000, 395000, 350000, 300000, 250000, 207000, 150000, 97000]:
+#max_taxables = [1E9, 500000, 395000, 350000, 300000, 250000, 207000, 150000, 97000]
+max_taxables = [395000, 350000, 300000, 250000, 97000]
+for max_taxable in max_taxables:
     df = my.scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
                      income, ira_value, roth_value, savings_value,
                      heir_yob, heir_income, heir_factor)
     df.to_csv(os.path.join('output', 'ira_out_'+str(max_taxable)+'.csv'))
     scenario_out.append(df)
-    summary.append({'spending':spending, 'max_taxable':max_taxable, 'marr':marr, 'roi':roi, 'inflation':inflation, 'cumcost':df.cost.sum(), 'pv':df.pv.sum()})
+    summary.append({'spending':spending, 'max_taxable':max_taxable, 'marr':marr, 'roi':roi, 'inflation':inflation, 'totalexpenses':df.expenses.sum(), 'pv':df.pv[len(df.pv)-1]})
 dfsum = pd.DataFrame(summary)
 dfsum.to_csv(os.path.join('output', 'ira_out.csv'))
+dfsum
 
 #%%
-# Cumulative cost of taxes and medicare
+# Cumulative taxes, medicare, and spending expenses
 for i in range(0,len(scenario_out)):
     df = scenario_out[i]
-    plt.plot(df.age, df.cumcost, label=str(i)+'. limit: '+str(round(df.max_taxable[0]/1000))+'; PV='+str(round(dfsum.pv[i]/1000)))
+    plt.plot(df.age, df.cumexpenses, label=str(i)+'. limit: '+str(round(df.max_taxable[0]/1000))+'; PV='+str(round(dfsum.pv[i]/1000)))
 plt.xlabel('age')
-plt.ylabel('cumultive cost')
-plt.title('Taxes and Medicare Costs; MARR='+str(marr)+'; ROI='+str(roi)+'; Inflation='+str(inflation))
+plt.ylabel('cumultive Expenses')
+plt.title('Taxes, Medicare, and Spending; MARR='+str(marr)+'; ROI='+str(roi)+'; Inflation='+str(inflation))
 plt.legend
 plt.legend(fontsize=8) # Displays the labels for each line
 plt.show()

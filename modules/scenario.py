@@ -34,6 +34,7 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
     savings_remaining = savings_value
     cumexpenses = 0
     cumpv = 0       # present value (pv = fv / (1+r)^n)
+    print_broke = True
     for i,yr in enumerate(year):
         if yr < start:
             rmd.append(0.)
@@ -58,7 +59,7 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             else:
                 ira_convert.append(0.)
 
-            # total taxable income in current year
+            # total taxable income and associated taxes
             taxable = income[i] + rmd[i] + ira_convert[i]
             federal, state = my.tax(taxable)
 
@@ -77,21 +78,22 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             income_extra = taxable - expenses
             savings_remaining = savings_remaining + income_extra
             income_extra = 0
+
+            # if no more savings, then need to take funds from Roth or IRA
             if savings_remaining < 0:
                 # insufficient savings to cover expenses so take from Roth IRA first
                 take = - savings_remaining
-                roth_remaining = roth_remaining - take
                 savings_remaining = 0
+                roth_remaining = roth_remaining - take
                 if roth_remaining < 0:
-                    print ('Not enough savings or Roth to cover expenses in year', yr, 'age', age[i], 'income', income[i], 'expenses', expenses)
-                    # withdraw from IRA and refigure taxes
+                    # not enough left in Roth to cover expenses, so take remainder from IRA and refigure taxes
                     take = - roth_remaining
                     roth_remaining = 0
                     ira_remaining = ira_remaining - take
                     if ira_remaining < 0:
-                        print('#############################')
-                        print('########### BROKE ###########')
-                        print('#############################')
+                        if print_broke == True:
+                            print('## BROKE: year=',yr,' spending',spending,'; max taxable',max_taxable)
+                            print_broke = False
                         ira_remaining = ira_remaining + take
                         federal, state = my.tax(taxable + ira_remaining)
                         ira_remaining = 0
@@ -114,13 +116,14 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
 
             # save results
             mylist.append({'max_taxable':max_taxable, 'marr':marr, 'roi':roi, 'inflation':inflation,
-                           'year':year[i], 'age':age[i], 'income':income[i], 'rmd':rmd[i],
-                            'ira_convert':ira_convert[i], 'taxable':taxable, 
-                            'ira_remaining':ira_remaining, 'roth_remaining':roth_remaining, 'savings_remaining':savings_remaining,
-                            'federal':round(federal), 'state':round(state), 'tax':round(federal+state),
-                            'agi medicare':agi_medicare, 'medicare':round(med),
-                            'expenses':round(expenses), 'cumexpenses':round(cumexpenses), 'spending':round(spending), 
-                            'pvi':pvi, 'pv':pv})
-        
+                           'year':year[i], 'age':age[i], 'income':income[i], 'rmd':round(rmd[i]),
+                           'ira_convert':round(ira_convert[i]), 'taxable':round(taxable), 
+                           'ira_remaining':round(ira_remaining), 'roth_remaining':round(roth_remaining),
+			               'savings_remaining':round(savings_remaining),
+                           'federal':round(federal), 'state':round(state), 'tax':round(federal+state),
+                           'agi medicare':round(agi_medicare), 'medicare':round(med),
+                           'expenses':round(expenses), 'cumexpenses':round(cumexpenses), 'spending':round(spending), 
+                           'pvi':round(pvi), 'pv':round(pv)})
+
     df = pd.DataFrame(mylist)
     return df
