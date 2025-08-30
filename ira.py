@@ -26,9 +26,9 @@ for i,a in enumerate(age):
     elif a > 72:
         social_security = 44000 + 54000
     income[i] = income[i] + social_security
-savings_value = 2E5    # starting value of savings account
-ira_value     = 2E6    # starting value of traditional IRA
-roth_value    = 2E6    # starting value of Roth IRA
+savings_value = 4E5    # starting value of savings account
+ira_value     = 3.5E6    # starting value of traditional IRA
+roth_value    = 5E5    # starting value of Roth IRA
 spending      = 200000 # starting amount of planned spending to be increased with inflation
 start         = 2025   # start year for evaluation; need to include 2 years of income before start for medicare cost
 marr          = 0.07   # minimum acceptable rate of return

@@ -61,7 +61,7 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
 
             # total taxable income and associated taxes
             taxable = income[i] + rmd[i] + ira_convert[i]
-            federal, state = my.tax(taxable)
+            federal, state, rate_federal_income, rate_federal_lcg, rate_state = my.tax(yr, inflation, taxable)
 
             # medicare cost
             agi_medicare = income[i-2] + rmd[i-2] + ira_convert[i-2]
@@ -71,7 +71,8 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
                 med = my.medicare(agi_medicare)
 
             # total expenses of federal tax, state tax, and medicare and planned spending
-            expenses = federal + state + med + spending * (1 + inflation)**(yr-start)
+            spendingi = spending * (1 + inflation)**(yr-start)
+            expenses = federal + state + med + spendingi
             cumexpenses = cumexpenses + expenses
 
             # add extra income to savings
@@ -92,15 +93,15 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
                     ira_remaining = ira_remaining - take
                     if ira_remaining < 0:
                         if print_broke == True:
-                            print('## BROKE: year=',yr,' spending',spending,'; max taxable',max_taxable)
+                            print('## BROKE: year=',yr,' initial spending',spending,'; max taxable',max_taxable)
                             print_broke = False
                         ira_remaining = ira_remaining + take
-                        federal, state = my.tax(taxable + ira_remaining)
+                        federal, state, rate_federal_income, rate_federal_lcg, rate_state = my.tax(yr, inflation, taxable + ira_remaining)
                         ira_remaining = 0
                         expenses = federal + state + med + spending * (1 + inflation)**(yr-start)
                         cumexpenses = cumexpenses + expenses
                     else:
-                        federal, state = my.tax(taxable + take)
+                        federal, state, rate_federal_income, rate_federal_lcg, rate_state = my.tax(yr, inflation, taxable + take)
                         cumexpenses = cumexpenses - expenses
                         expenses = federal + state + med + spending * (1 + inflation)**(yr-start)
                         cumexpenses = cumexpenses + expenses   # updated with new expenses
@@ -110,7 +111,7 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             cumpv = cumpv + pvi
 
             # pv if add 10 year withdrawal of remaining IRA after taxes
-            distributions, pvcalc = my.pv_estate(ira_remaining, roth_remaining, savings_remaining,
+            distributions, pvcalc = my.pv_estate(yr, inflation, ira_remaining, roth_remaining, savings_remaining,
                                                   heir_income, heir_age, roi, marr, heir_factor=heir_factor)
             pv = cumpv + pvcalc
 
@@ -122,8 +123,9 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
 			               'savings_remaining':round(savings_remaining),
                            'federal':round(federal), 'state':round(state), 'tax':round(federal+state),
                            'agi medicare':round(agi_medicare), 'medicare':round(med),
-                           'expenses':round(expenses), 'cumexpenses':round(cumexpenses), 'spending':round(spending), 
-                           'pvi':round(pvi), 'pv':round(pv)})
+                           'expenses':round(expenses), 'cumexpenses':round(cumexpenses), 'spending':round(spendingi), 
+                           'pvi':round(pvi), 'pv':round(pv), 
+                           'rate_federal_income':rate_federal_income, 'rate_federal_lcg':rate_federal_lcg, 'rate_state':rate_state})
 
     df = pd.DataFrame(mylist)
     return df
