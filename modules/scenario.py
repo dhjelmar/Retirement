@@ -116,6 +116,8 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             pv = cumpv + pvcalc
 
             # save results
+            #if yr == 2037:
+            #    breakpoint()
             mylist.append({'max_taxable':max_taxable, 'marr':marr, 'roi':roi, 'inflation':inflation,
                            'year':year[i], 'age':age[i], 'income':income[i], 'rmd':round(rmd[i]),
                            'ira_convert':round(ira_convert[i]), 'taxable':round(taxable), 
