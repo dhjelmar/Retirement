@@ -20,6 +20,9 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
     heir_income = income of heir
     heir_factor = factor to use for RMD calculation; 'min' uses IRS single life expectancy table
     '''
+    
+    # conversion to pandas series is not really necessary but provides consistency 
+    # depending on how they were defined and supposed efficiency vs. lists
     year = pd.Series(year)
     age = pd.Series(age)
     income = pd.Series(income)
@@ -54,6 +57,7 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
                     # subtract conversion from remaining RMD
                     ira_remaining = max(ira_remaining - convert, 0)
                 else:
+                    # convert entire IRA
                     ira_convert.append(ira_remaining)
                     ira_remaining = 0.
             else:
