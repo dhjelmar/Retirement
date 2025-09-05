@@ -20,14 +20,18 @@ def medicare(magi, paid_deductible=1676):
         if magi < value:
             medicare = yearlyB[i-1] + yearlyD[i-1]
             return medicare + paid_deductible
+    return medicare + paid_deductible
+
 #%%
 
 def medicare_test():
     import pandas as pd
     example = []
-    for magi in [212000, 212001, 334000, 334001, 750000, 750001, 1E6]:
-        example.append({'magi':magi, 'medicare':medicare(magi)})
+    for magi in [1000, 212000, 212001, 334000, 334001, 750000, 750001, 1E6]:
+        example.append({'magi':magi, 'medicare':medicare(magi, paid_deductible=0)})
     example = pd.DataFrame(example)
     return example
-medicare_test()
+
+#%%
+#medicare_test()
 #%%

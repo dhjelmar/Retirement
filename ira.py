@@ -26,9 +26,9 @@ for i,a in enumerate(age):
     elif a > 72:
         social_security = 44000 + 54000
     income[i] = income[i] + social_security
-savings_value = 4E5    # starting value of savings account
-ira_value     = 3.5E6    # starting value of traditional IRA
-roth_value    = 5E5    # starting value of Roth IRA
+savings_initial = 4E5    # starting value of savings account
+ira_initial     = 3.5E6    # starting value of traditional IRA
+roth_initial    = 5E5    # starting value of Roth IRA
 spending      = 250000 # starting amount of planned spending to be increased with inflation
 start         = 2025   # start year for evaluation; need to include 2 years of income before start for medicare cost
 marr          = 0.07   # minimum acceptable rate of return
@@ -47,12 +47,13 @@ summary = []
 max_taxables = [395000, 350000, 300000, 250000, 97000]
 os.makedirs('output', exist_ok=True)
 for max_taxable in max_taxables:
+    print('max_taxable=',max_taxable)
     df = my.scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
-                     income, ira_value, roth_value, savings_value,
+                     income, ira_initial, roth_initial, savings_initial,
                      heir_yob, heir_income, heir_factor)
     df.to_csv(os.path.join('output', 'ira_out_'+str(max_taxable)+'.csv'))
     scenario_out.append(df)
-    summary.append({'spending':spending, 'max_taxable':max_taxable, 'marr':marr, 'roi':roi, 'inflation':inflation, 'totalexpenses':df.expenses.sum(), 'pv':df.pv[len(df.pv)-1]})
+    summary.append({'spending':spending, 'max_taxable':max_taxable, 'marr':marr, 'roi':roi, 'inflation':inflation, 'totalexpenses':df.expenses.sum(), 'PVestate':df.PVestate[len(df.PVestate)-1]})
 dfsum = pd.DataFrame(summary)
 dfsum.to_csv(os.path.join('output', 'ira_out.csv'))
 dfsum
@@ -64,7 +65,7 @@ d2m = 1/1E6
 # Cumulative taxes, medicare, and spending expenses
 for i in range(0,len(scenario_out)):
     df = scenario_out[i]
-    plt.plot(df.age, df.cumexpenses*d2m, label=str(i)+'. limit: '+str(round(df.max_taxable[0]*d2m,3))+'; PV='+str(round(dfsum.pv[i]*d2m,3)))
+    plt.plot(df.age, df.cumexpenses*d2m, label=str(i)+'. limit: '+str(round(df.max_taxable[0]*d2m,3))+'; PVestate='+str(round(df.PVestate[len(df.PVestate)-1]*d2m,3)))
 plt.xlabel('age')
 plt.ylabel('cumultive Expenses')
 plt.title('Taxes, Medicare, and Spending; MARR='+str(marr)+'; ROI='+str(roi)+'; Inflation='+str(inflation))
@@ -76,7 +77,7 @@ plt.show()
 # Taxable income (not counting Roth withdrawals)
 for i in range(0,len(scenario_out)):
     df = scenario_out[i]
-    plt.plot(df.age, df.taxable*d2m, label=str(i)+'. limit: '+str(round(df.max_taxable[0]*d2m,3))+'; PV='+str(round(dfsum.pv[i]*d2m,3)))
+    plt.plot(df.age, df.taxable*d2m, label=str(i)+'. limit: '+str(round(df.max_taxable[0]*d2m,3))+'; PVestate='+str(round(df.PVestate[len(df.PVestate)-1]*d2m,3)))
 plt.xlabel('age')
 plt.ylabel('Taxable Income')
 plt.title('Taxable Income; MARR='+str(marr)+'; ROI='+str(roi)+'; Inflation='+str(inflation))
@@ -84,26 +85,36 @@ plt.legend(fontsize=8) # Displays the labels for each line
 plt.show()
 
 #%%
-# PV
+# assets
 for i in range(0,len(scenario_out)):
     df = scenario_out[i]
-    plt.plot(df.age, df.pv*d2m, label=str(i)+'. limit: '+str(round(df.max_taxable[0]*d2m,3))+'; PV='+str(round(dfsum.pv[i]*d2m,3)))
-#plt.ylim(100000, 600000)
+    plt.plot(df.age, df.assets*d2m, label=str(i)+'. limit: '+str(round(df.max_taxable[0]*d2m,3))+'; PVestate='+str(round(df.PVestate[len(df.PVestate)-1]*d2m,3)))
 plt.xlabel('age')
-plt.ylabel('PV')
-plt.title('Present Value; MARR='+str(marr)+'; ROI='+str(roi)+'; Inflation='+str(inflation))
+plt.ylabel('Assets = Savings + Roth + discoutned IRA for 24% taxes')
+plt.title('Assets; MARR='+str(marr)+'; ROI='+str(roi)+'; Inflation='+str(inflation))
 plt.legend(fontsize=8) # Displays the labels for each line
 plt.show()
 
 #%%
-# assets
+# PV of assets
 for i in range(0,len(scenario_out)):
     df = scenario_out[i]
-    df['assets'] = df.ira_remaining + df.roth_remaining + df.savings_remaining
-    plt.plot(df.age, df.assets*d2m, label=str(i)+'. limit: '+str(round(df.max_taxable[0]*d2m,3))+'; assets='+str(round(df.assets[len(df.assets)-1]*d2m,3)))
+    plt.plot(df.age, df.PVassets*d2m, label=str(i)+'. limit: '+str(round(df.max_taxable[0]*d2m,3))+'; PVestate='+str(round(df.PVestate[len(df.PVestate)-1]*d2m,3)))
 plt.xlabel('age')
-plt.ylabel('Assets = IRA + Roth + Savings')
-plt.title('Assets; MARR='+str(marr)+'; ROI='+str(roi)+'; Inflation='+str(inflation))
+plt.ylabel('PVassets = Present Value of Savings + Roth + discoutned IRA for 24% taxes')
+plt.title('PVassets; MARR='+str(marr)+'; ROI='+str(roi)+'; Inflation='+str(inflation))
+plt.legend(fontsize=8) # Displays the labels for each line
+plt.show()
+
+#%%
+# PV of estate
+for i in range(0,len(scenario_out)):
+    df = scenario_out[i]
+    plt.plot(df.age, df.PVestate*d2m, label=str(i)+'. limit: '+str(round(df.max_taxable[0]*d2m,3))+'; PVestate='+str(round(df.PVestate[len(df.PVestate)-1]*d2m,3)))
+#plt.ylim(100000, 600000)
+plt.xlabel('age')
+plt.ylabel('PV')
+plt.title('PVestate; MARR='+str(marr)+'; ROI='+str(roi)+'; Inflation='+str(inflation))
 plt.legend(fontsize=8) # Displays the labels for each line
 plt.show()
 
