@@ -38,6 +38,7 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
     roth = roth_initial
     savings = savings_initial
     cumexpenses = 0
+    pvcum = 0
     print_broke = True
     for i,yr in enumerate(year):
         if yr < start:
@@ -47,6 +48,11 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             # determine RMD based on prior EOY IRA value for current year age
             rmd.append(my.rmd(ira, age[i]))
             
+            # initialize how much to take out of various assets
+            savings_out = 0
+            roth_out = 0
+            ira_out = rmd[i]
+
             # increase account remaining values for income and growth move RMD from IRA to savings
             ira = (1 + roi)*ira - rmd[i]
             roth = (1 + roi)*roth
@@ -67,6 +73,8 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
                 # income + rmd already above max taxable so no conversion
                 ira_convert.append(0.)
             roth = roth + ira_convert[i]
+            ira_out = ira_out + ira_convert[i]
+            roth_out = roth_out - ira_convert[i]
 
             # total taxable income and associated taxes
             taxable = income[i-1] + rmd[i-1] + ira_convert[i-1]
@@ -88,15 +96,19 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             savings = savings - expenses
 
             # if no more savings, then need to take funds from Roth or IRA
-            if savings < 0:
+            if savings > 0:
+                savings_out = savings_out + expenses
+            else:
                 # insufficient savings to cover expenses so take from Roth IRA first
                 take = - savings
                 savings = 0
                 if roth > take:
                     roth = roth - take
+                    roth_out = roth_out + take
                 else:
                     # not enough left in Roth to cover expenses, so take remainder from IRA and refigure taxes
-                    take = - roth
+                    roth_out = roth_out + roth
+                    take = take - roth
                     roth = 0
                     if ira > take:
                         ira = ira - take
@@ -104,22 +116,28 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
                         if print_broke == True:
                             print('## BROKE: year=',yr,' initial spending',spending,'; max taxable',max_taxable)
                             print_broke = False
-                        federal, state, rate_federal_income, rate_federal_lcg, rate_state = my.tax(yr, inflation, taxable + ira)
                         take = ira
                         ira = 0
+                    ira_out = ira_out + take
 
-                    federal, state, rate_federal_income, rate_federal_lcg, rate_state = my.tax(yr, inflation, taxable + take)               
+                    taxable = income[i-1] + ira_out
+                    federal, state, rate_federal_income, rate_federal_lcg, rate_state = my.tax(yr, inflation, taxable)               
                     cumexpenses = cumexpenses - expenses
                     expenses = federal + state + med + spending * (1 + inflation)**(yr-start)
                     cumexpenses = cumexpenses + expenses   # updated with new expenses
 
             # assets in year i; ira discounted for 24% taxes
             assets = savings + roth + (1-0.24)*ira
-            PVassets = assets /( 1 + marr_real )**(yr-start)
+            assets_constant_dollars = assets /( 1 + inflation )**(yr-start)
+
+            # present value of cash flow (i.e., expenses) and remaining assets
+            pvcum = pvcum + expenses / ( 1 + marr_real )**(yr-start)
+            PVassets = pvcum + assets / ( 1 + marr_real )**(yr-start)
 
             # pv if add 10 year withdrawal of remaining IRA after taxes
             distributions, PVestate = my.pv_estate(yr, inflation, ira, roth, savings,
                                                   heir_income, heir_age, roi, marr, heir_factor=heir_factor)
+            PVestate = pvcum + PVestate
 
             # save results
             #if yr == 2037:
@@ -129,9 +147,11 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
                            'ira_convert':round(ira_convert[i]), 'taxable':round(taxable), 
                            'savings':round(savings), 'roth':round(roth), 'ira':round(ira),
                            'federal':round(federal), 'state':round(state), 'tax':round(federal+state),
-                           'agi medicare':round(agi_medicare), 'medicare':round(med),
+                           'agi_medicare':round(agi_medicare), 'medicare':round(med),
                            'expenses':round(expenses), 'cumexpenses':round(cumexpenses), 'spending':round(spendingi), 
-                           'assets':round(assets), 'PVassets':round(PVassets), 'PVestate':round(PVestate),
+                           'savings_out':savings_out, 'roth_out':roth_out, 'ira_out':ira_out,
+                           'assets':round(assets), 'assets_constant_dollars':round(assets_constant_dollars), 
+                           'PVassets':round(PVassets), 'PVestate':round(PVestate),
                            'rate_federal_income':rate_federal_income, 'rate_federal_lcg':rate_federal_lcg, 'rate_state':rate_state})
 
     df = pd.DataFrame(mylist)

@@ -96,6 +96,17 @@ plt.legend(fontsize=8) # Displays the labels for each line
 plt.show()
 
 #%%
+# constant dollar assets
+for i in range(0,len(scenario_out)):
+    df = scenario_out[i]
+    plt.plot(df.age, df.assets_constant_dollars*d2m, label=str(i)+'. limit: '+str(round(df.max_taxable[0]*d2m,3))+'; PVestate='+str(round(df.PVestate[len(df.PVestate)-1]*d2m,3)))
+plt.xlabel('age')
+plt.ylabel('Constant Dollar Assets = Savings + Roth + discoutned IRA for 24% taxes')
+plt.title('Assets; MARR='+str(marr)+'; ROI='+str(roi)+'; Inflation='+str(inflation))
+plt.legend(fontsize=8) # Displays the labels for each line
+plt.show()
+
+#%%
 # PV of assets
 for i in range(0,len(scenario_out)):
     df = scenario_out[i]
