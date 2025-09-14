@@ -29,13 +29,14 @@ for i,a in enumerate(age):
 savings_initial = 4E5    # starting value of savings account
 ira_initial     = 3.5E6    # starting value of traditional IRA
 roth_initial    = 5E5    # starting value of Roth IRA
-spending      = 250000 # starting amount of planned spending to be increased with inflation
+spending      = 200000 # starting amount of planned spending to be increased with inflation
 start         = 2025   # start year for evaluation; need to include 2 years of income before start for medicare cost
 marr          = 0.07   # minimum acceptable rate of return
 roi           = marr   # return on investment used to increase IRA value with time
 inflation     = 0.0215
 heir_yob      = 1996   # heir year of birth; used to determine RMDs
 heir_income   = 150000 # income of heir; used to determine RMDs
+heir_income   = 200000 # income of heir; used to determine RMDs
 heir_factor   = 'min'  # factor to use for RMD calculation; 'min' uses IRS single life expectancy table
 heir_factor   = 5      # or some #<10 to withdraw a more even amount each year to deplete by required 10 years to minimize taxes
 
@@ -56,10 +57,10 @@ for max_taxable in max_taxables:
     summary.append({'spending':spending, 'max_taxable':max_taxable, 'marr':marr, 'roi':roi, 'inflation':inflation, 'totalexpenses':df.expenses.sum(), 'PVestate':df.PVestate[len(df.PVestate)-1]})
 dfsum = pd.DataFrame(summary)
 dfsum.to_csv(os.path.join('output', 'ira_out.csv'))
-dfsum
 
 # divisor for dollars
 d2m = 1/1E6
+dfsum
 
 #%%
 # Cumulative taxes, medicare, and spending expenses
@@ -130,5 +131,15 @@ plt.legend(fontsize=8) # Displays the labels for each line
 plt.show()
 
 #%%
-scenario_out[2]   # printout selected scenario #
+dfsum
+
+#%%
+i = 2
+print('max_taxable=',scenario_out[i]['max_taxable'].iloc[0])
+print('inflation  =',scenario_out[i]['inflation'].iloc[0])
+print('roi        =',scenario_out[i]['roi'].iloc[0])
+print('marr       =',scenario_out[i]['marr'].iloc[0])
+print('spending   =',scenario_out[i]['spending'].iloc[0])
+cols = ['year','age','income','savings_out','roth_out','ira_out','taxable','federal','state','medicare','savings','roth','ira','assets','PVassets','PVestate']
+scenario_out[i][cols].round().astype(int)   # printout selected scenario #
 #%%

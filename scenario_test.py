@@ -141,7 +141,7 @@ check.append({'test':i, 'pass':checki})
 df[cols]
 
 #%%
-# test
+# test not finalized yet
 i = 4
 print()
 print('test', i)
