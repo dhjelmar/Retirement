@@ -132,27 +132,47 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
 
             # present value of cash flow (i.e., expenses) and remaining assets
             pvcum = pvcum + expenses / ( 1 + marr_real )**(yr-start)
-            PVassets = pvcum + assets / ( 1 + marr_real )**(yr-start)
+            PV = pvcum + assets / ( 1 + marr_real )**(yr-start)
 
             # pv if add 10 year withdrawal of remaining IRA after taxes
             distributions, PVestate = my.pv_estate(yr, inflation, ira, roth, savings,
                                                   heir_income, heir_age, roi, marr, heir_factor=heir_factor)
-            PVestate = pvcum + PVestate
+            PVestate = pvcum + PVestate / ( 1 + marr_real )**(yr-start)
 
             # save results
             #if yr == 2037:
             #    breakpoint()
-            mylist.append({'max_taxable':max_taxable, 'marr':marr, 'roi':roi, 'inflation':inflation,
-                           'year':year[i], 'age':age[i], 'income':income[i], 'rmd':round(rmd[i]),
-                           'ira_convert':round(ira_convert[i]), 'taxable':round(taxable), 
-                           'savings':round(savings), 'roth':round(roth), 'ira':round(ira),
-                           'federal':round(federal), 'state':round(state), 'tax':round(federal+state),
-                           'agi_medicare':round(agi_medicare), 'medicare':round(med),
-                           'expenses':round(expenses), 'cumexpenses':round(cumexpenses), 'spending':round(spendingi), 
-                           'savings_out':savings_out, 'roth_out':roth_out, 'ira_out':ira_out,
-                           'assets':round(assets), 'assets_constant_dollars':round(assets_constant_dollars), 
-                           'PVassets':round(PVassets), 'PVestate':round(PVestate),
-                           'rate_federal_income':rate_federal_income, 'rate_federal_lcg':rate_federal_lcg, 'rate_state':rate_state})
+            mylist.append({'max_taxable':max_taxable,
+                           'marr':marr,
+                           'roi':roi,
+                           'inflation':inflation,
+                           'year':year[i],
+                           'age':age[i],
+                           'income':income[i],
+                           'savings_out':savings_out,
+                           'roth_out':roth_out,
+                           'ira_out':ira_out,
+                           'rmd':round(rmd[i]),
+                           'ira_convert':round(ira_convert[i]),
+                           'taxable':round(taxable),
+                           'federal':round(federal),
+                           'state':round(state),
+                           'medicare':round(med),
+                           'savings':round(savings),
+                           'roth':round(roth),
+                           'ira':round(ira),
+                           'PV':round(PV),
+                           'PVestate':round(PVestate),
+                           'tax':round(federal+state),
+                           'agi_medicare':round(agi_medicare),
+                           'expenses':round(expenses),
+                           'cumexpenses':round(cumexpenses),
+                           'spending':round(spendingi), 
+                           'assets':round(assets),
+                           'assets_constant_dollars':round(assets_constant_dollars), 
+                           'rate_federal_income':rate_federal_income,
+                           'rate_federal_lcg':rate_federal_lcg,
+                           'rate_state':rate_state})
 
     df = pd.DataFrame(mylist)
     return df

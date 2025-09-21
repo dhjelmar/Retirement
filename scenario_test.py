@@ -34,8 +34,8 @@ def checkit(df, expected_savings, expected_roth, expected_ira):
 # VERIFICATION TESTS
 check = []
 dfout = []
-cols = ['year','age','income','rmd','ira_convert','taxable','federal','state','medicare','savings','roth','ira','assets','PVassets','PVestate']
-cols = ['year','age','income','savings_out','roth_out','ira_out','taxable','federal','state','medicare','savings','roth','ira','assets','PVassets','PVestate']
+cols = ['year','age','income','rmd','ira_convert','taxable','federal','state','medicare','savings','roth','ira','assets','PV','PVestate']
+cols = ['year','age','income','savings_out','roth_out','ira_out','taxable','federal','state','medicare','savings','roth','ira','assets','PV','PVestate']
 
 #%%
 # test
@@ -146,16 +146,20 @@ i = 4
 print()
 print('test', i)
 print('max_taxable =', max_taxable)
-savings_initial = 0.5E6
+income      = years * [0]
+spending = 0
+max_taxable = 0
+savings_initial = 100000 / (1-0.24)
 roth_initial    = 0.0
-ira_initial     = 0.5E6
-roi             = 0.0
+ira_initial     = 0.0
+roi             = 0.05
 marr            = roi
-inflation       = 0.02
+inflation       = 0.0
 df = my.scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             income, ira_initial, roth_initial, savings_initial,
             heir_yob, heir_income, heir_factor)
 dfout.append(df)
+
 # expected based on inspecting results from df[cols]
 expected_savings = 0
 expected_roth = 0
