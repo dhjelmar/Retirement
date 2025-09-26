@@ -12,43 +12,55 @@ import matplotlib.pyplot as plt
 import os
 import modules as my
 
-#%% 
-# set data common to all scenarios
-years = 42
-year        = range(2023, 2023+years, 1)
-age = np.array(year) - 1964
-#                2023,   2024,   2025,   2026]
-income      = [300000, 300000, 300000, 218000] + (years-4)*[135000]
-social_security = 0
-for i,a in enumerate(age):
-    if a == 72:
-        social_security = 44000
-    elif a > 72:
-        social_security = 44000 + 54000
-    income[i] = income[i] + social_security
-savings_initial = 4E5    # starting value of savings account
-ira_initial     = 3.5E6    # starting value of traditional IRA
-roth_initial    = 5E5    # starting value of Roth IRA
-spending      = 200000 # starting amount of planned spending to be increased with inflation
-start         = 2025   # start year for evaluation; need to include 2 years of income before start for medicare cost
-marr          = 0.07   # minimum acceptable rate of return
-roi           = marr   # return on investment used to increase IRA value with time
-inflation     = 0.0215
-heir_yob      = 1996   # heir year of birth; used to determine RMDs
-heir_income   = 150000 # income of heir; used to determine RMDs
-heir_income   = 200000 # income of heir; used to determine RMDs
-heir_factor   = 'min'  # factor to use for RMD calculation; 'min' uses IRS single life expectancy table
-heir_factor   = 5      # or some #<10 to withdraw a more even amount each year to deplete by required 10 years to minimize taxes
+#%%
+# import data needed for scenarios
+
+# following works, but then need to use as config.years instead of just years
+#import input.config as config
+#print(f"years = {config.years}")
+
+import_file = 'user'
+if import_file == 'test':
+    # test variables defined in input/config_test.py
+    from input.config_test import year
+    from input.config_test import age
+    from input.config_test import income
+    from input.config_test import savings_initial
+    from input.config_test import ira_initial
+    from input.config_test import roth_initial
+    from input.config_test import spending
+    from input.config_test import start
+    from input.config_test import marr
+    from input.config_test import roi
+    from input.config_test import inflation
+    from input.config_test import heir_factor
+    from input.config_test import heir_income
+    from input.config_test import heir_yob
+else:
+    # user can define variables in input/config.py
+    from input.config import year
+    from input.config import age
+    from input.config import income
+    from input.config import savings_initial
+    from input.config import ira_initial
+    from input.config import roth_initial
+    from input.config import spending
+    from input.config import start
+    from input.config import marr
+    from input.config import roi
+    from input.config import inflation
+    from input.config import heir_factor
+    from input.config import heir_income
+    from input.config import heir_yob
 
 # %%
 # run scenario with different maximum taxable income limits
 scenario_out = []
 summary = []
 #max_taxables = [1E9, 500000, 395000, 350000, 300000, 250000, 207000, 150000, 97000]
-max_taxables = [395000, 350000, 300000, 250000, 97000]
+max_taxables = [395000, 350000, 300000, 250000, 207000, 97000]
 os.makedirs('output', exist_ok=True)
 for max_taxable in max_taxables:
-    print('max_taxable=',max_taxable)
     df = my.scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
                      income, ira_initial, roth_initial, savings_initial,
                      heir_yob, heir_income, heir_factor)
@@ -89,13 +101,21 @@ def plotout(yvar='PVestate', xvar='age', scenario_list=scenario_out):
 plotout(yvar='PVestate')       # present value of estate (uses heir income for tax assumption)
 
 #%%
-i = 0
-print('max_taxable=',scenario_out[i]['max_taxable'].iloc[0])
-print('inflation  =',scenario_out[i]['inflation'].iloc[0])
-print('roi        =',scenario_out[i]['roi'].iloc[0])
-print('marr       =',scenario_out[i]['marr'].iloc[0])
-print('spending   =',scenario_out[i]['spending'].iloc[0])
+i = 3
+print('max_taxable     =',scenario_out[i]['max_taxable'].iloc[0])
+print('inflation       =',scenario_out[i]['inflation'].iloc[0])
+print('roi             =',scenario_out[i]['roi'].iloc[0])
+print('marr            =',scenario_out[i]['marr'].iloc[0])
+print('spending        =',scenario_out[i]['spending'].iloc[0])
+print('savings_initial =',round(savings_initial))
+print('roth_initial    =',round(roth_initial))
+print('ira_initial     =',round(ira_initial))
 cols = ['year','age','income','savings_out','roth_out','ira_out','rmd','ira_convert',
         'taxable','federal','state','medicare','savings','roth','ira','assets','PV','PVestate']
-scenario_out[i][cols].round().astype(int)   # printout selected scenario #
+cols = ['year','age','income','rmd','ira_convert','taxable','federal','state','medicare','savings','roth','ira','assets','PV','PVestate']
+cols = ['year','age','income','rmd','savings_out','roth_out','ira_out','ira_convert',
+        'savings','roth','ira','assets','PV','PVestate',
+        'taxable','federal','state','medicare','fedrate']
+df = scenario_out[i].copy()
+df[cols]
 #%%

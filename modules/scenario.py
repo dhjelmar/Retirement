@@ -56,7 +56,9 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             # increase account remaining values for income and growth move RMD from IRA to savings
             ira = (1 + roi)*ira - rmd[i]
             roth = (1 + roi)*roth
-            savings = (1 + roi)*savings + income[i] + rmd[i]
+            # assume large fraction of savings is cash so no roi on that fraction
+            cash_fraction = 0.5
+            savings = cash_fraction * savings + (1 + roi)*(1-cash_fraction)*savings + income[i] + rmd[i]
             
             # determine how much of traditional IRA to convert to keep total income below max_taxable + put into Roth
             convert = max_taxable - (income[i] + rmd[i])
@@ -78,7 +80,7 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
 
             # total taxable income and associated taxes
             taxable = income[i-1] + rmd[i-1] + ira_convert[i-1]
-            federal, state, rate_federal_income, rate_federal_lcg, rate_state = my.tax(yr, inflation, taxable)
+            federal, state, fedrate, fedrate_lcg, staterate = my.tax(yr, inflation, taxable)
 
             # medicare cost
             agi_medicare = income[i-2] + rmd[i-2] + ira_convert[i-2]
@@ -121,7 +123,7 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
                     ira_out = ira_out + take
 
                     taxable = income[i-1] + ira_out
-                    federal, state, rate_federal_income, rate_federal_lcg, rate_state = my.tax(yr, inflation, taxable)               
+                    federal, state, fedrate, fedrate_lcg, staterate = my.tax(yr, inflation, taxable)               
                     cumexpenses = cumexpenses - expenses
                     expenses = federal + state + med + spending * (1 + inflation)**(yr-start)
                     cumexpenses = cumexpenses + expenses   # updated with new expenses
@@ -146,35 +148,43 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
                            'marr':marr,
                            'roi':roi,
                            'inflation':inflation,
+
                            'year':year[i],
                            'age':age[i],
                            'income':income[i],
-                           'savings_out':savings_out,
-                           'roth_out':roth_out,
-                           'ira_out':ira_out,
                            'rmd':round(rmd[i]),
                            'ira_convert':round(ira_convert[i]),
+
+                           'savings_out':round(savings_out),
+                           'roth_out':round(roth_out),
+                           'ira_out':round(ira_out),
+
+                           'savings':round(savings),
+                           'roth':round(roth),
+                           'ira':round(ira),
+
+                           'assets':round(assets),
+                           'assets_constant_dollars':round(assets_constant_dollars), 
+                           'PV':round(PV),
+                           'PVestate':round(PVestate),
+
                            'taxable':round(taxable),
                            'federal':round(federal),
                            'state':round(state),
                            'medicare':round(med),
-                           'savings':round(savings),
-                           'roth':round(roth),
-                           'ira':round(ira),
-                           'PV':round(PV),
-                           'PVestate':round(PVestate),
                            'tax':round(federal+state),
+
                            'agi_medicare':round(agi_medicare),
                            'expenses':round(expenses),
                            'cumexpenses':round(cumexpenses),
                            'spending':round(spendingi), 
-                           'assets':round(assets),
-                           'assets_constant_dollars':round(assets_constant_dollars), 
-                           'rate_federal_income':rate_federal_income,
-                           'rate_federal_lcg':rate_federal_lcg,
-                           'rate_state':rate_state})
+
+                           'fedrate':fedrate,
+                           'fedrate_lcg':fedrate_lcg,
+                           'staterate':staterate})
 
     df = pd.DataFrame(mylist)
+
     return df
 
 # %%

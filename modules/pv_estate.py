@@ -85,8 +85,8 @@ def pv_estate(year, inflation, ira_remaining, roth_remaining, savings_remaining,
         rmd, ira_remaining, factor = rmd_estate(i, ira_remaining, heir_age, roi, heir_factor, rmd_single_life_table)
 
         # rmd after taxes based on heir_income
-        federal_after_rmd, state_after_rmd, rate_federal_income, rate_federal_lcg, rate_state = my.tax(year, inflation, heir_income + rmd, lcg=0)
-        federal_before_rmd, state_before_rmd, rate_federal_income, rate_federal_lcg, rate_state = my.tax(year, inflation, heir_income, lcg=0)
+        federal_after_rmd, state_after_rmd, fedrate, fedrate_lcg, staterate = my.tax(year, inflation, heir_income + rmd, lcg=0)
+        federal_before_rmd, state_before_rmd, fedrate, fedrate_lcg, staterate  = my.tax(year, inflation, heir_income, lcg=0)
         rmd_after_tax = rmd - (federal_after_rmd-federal_before_rmd) - (state_after_rmd-state_before_rmd)
 
         # PV
