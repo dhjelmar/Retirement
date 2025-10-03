@@ -45,6 +45,18 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             rmd.append(0.)
             ira_convert.append(0.)
         else:
+
+            # medicare cost based on two years prior
+            agi_medicare = income[i-2] + rmd[i-2] + ira_convert[i-2]
+            if age[i] < 65:
+                med = 0
+            else:
+                med = my.medicare(agi_medicare)
+                
+            # total taxable income and associated taxes baesd on prior year
+            taxable = income[i-1] + rmd[i-1] + ira_convert[i-1]
+            federal, state, fedrate, fedrate_lcg, staterate = my.tax(yr, inflation, taxable)
+
             # determine RMD based on prior EOY IRA value for current year age
             rmd.append(my.rmd(ira, age[i]))
             
@@ -53,42 +65,23 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             roth_out = 0
             ira_out = rmd[i]
 
-            # increase account remaining values for income and growth move RMD from IRA to savings
-            ira = (1 + roi)*ira - rmd[i]
+            # determine how much of traditional IRA to convert to Roth or use for expenses to keep total income below max_taxable
+            ira_out_extra = max_taxable - (income[i] + rmd[i])
+            if ira_out_extra < 0:
+                # already above max_taxable so no withdrawal
+                ira_out_extra = 0
+            elif ira_out_extra > ira:
+                # amount to take is more than balance so take balance
+                ira_out_extra = ira
+            ira_out = ira_out + ira_out_extra
+
+            # increase account remaining values for income and growth move any IRA withdrawals to savings
+            ira = max((1 + roi)*ira - ira_out, 0)
             roth = (1 + roi)*roth
             # assume large fraction of savings is cash so no roi on that fraction
             cash_fraction = 0.5
-            savings = cash_fraction * savings + (1 + roi)*(1-cash_fraction)*savings + income[i] + rmd[i]
+            savings = cash_fraction * savings + (1 + roi)*(1-cash_fraction)*savings + income[i] + ira_out
             
-            # determine how much of traditional IRA to convert to keep total income below max_taxable + put into Roth
-            convert = max_taxable - (income[i] + rmd[i])
-            if convert > 0.:
-                if ira > convert:
-                    ira_convert.append(convert)
-                    # subtract conversion from remaining RMD
-                    ira = max(ira - convert, 0)
-                else:
-                    # convert entire IRA
-                    ira_convert.append(ira)
-                    ira = 0.
-            else:
-                # income + rmd already above max taxable so no conversion
-                ira_convert.append(0.)
-            roth = roth + ira_convert[i]
-            ira_out = ira_out + ira_convert[i]
-            roth_out = roth_out - ira_convert[i]
-
-            # total taxable income and associated taxes
-            taxable = income[i-1] + rmd[i-1] + ira_convert[i-1]
-            federal, state, fedrate, fedrate_lcg, staterate = my.tax(yr, inflation, taxable)
-
-            # medicare cost
-            agi_medicare = income[i-2] + rmd[i-2] + ira_convert[i-2]
-            if age[i] < 65:
-                med = 0
-            else:
-                med = my.medicare(agi_medicare)
-
             # total expenses of federal tax, state tax, and medicare and planned spending
             spendingi = spending * (1 + inflation)**(yr-start)
             expenses = federal + state + med + spendingi
@@ -96,12 +89,31 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
 
             # pay expenses from savings
             savings = savings - expenses
+            savings_out = savings_out + expenses
 
             # if no more savings, then need to take funds from Roth or IRA
             if savings > 0:
-                savings_out = savings_out + expenses
+                # have sufficient savings to cover expenses so convert ira_out_extra to Roth if possible
+                if ira_out_extra <= 0:
+                    # nothing to convert
+                    convert = 0
+                elif ira_out_extra > savings:
+                    # sufficient savings so convert entire amount
+                    convert = ira_out_extra
+                else:
+                    # insufficient savings to convert entire amount
+                    # could change this to keep a minimum savings amount
+                    minimum_savings = 0.
+                    convert = max(savings - minimum_savings, 0)
+                ira_convert.append(convert)
+                savings = savings - convert
+                savings_out = savings_out + convert
+                roth = roth + convert
+                roth_out = roth_out - convert
+
             else:
                 # insufficient savings to cover expenses so take from Roth IRA first
+                ira_convert.append(0)  # if insufficient savings, then will not convert anything to Roth
                 take = - savings
                 savings = 0
                 if roth > take:
