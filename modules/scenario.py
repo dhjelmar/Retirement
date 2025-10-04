@@ -37,6 +37,8 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
     ira = ira_initial
     roth = roth_initial
     savings = savings_initial
+    federal_est_last = 0    # initialize last year estimated tax payment
+    state_est_last = 0
     cumexpenses = 0
     pvcum = 0
     print_broke = True
@@ -53,9 +55,9 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             else:
                 med = my.medicare(agi_medicare)
                 
-            # total taxable income and associated taxes baesd on prior year
+            # total taxable income and associated taxes based on prior year
             taxable = income[i-1] + rmd[i-1] + ira_convert[i-1]
-            federal, state, fedrate, fedrate_lcg, staterate = my.tax(yr, inflation, taxable)
+            federal, state, fedrate, fedrate_lcg, staterate = my.tax(yr-1, inflation, taxable)
 
             # determine RMD based on prior EOY IRA value for current year age
             rmd.append(my.rmd(ira, age[i]))
@@ -82,20 +84,25 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             cash_fraction = 0.5
             savings = cash_fraction * savings + (1 + roi)*(1-cash_fraction)*savings + income[i] + ira_out
             
+            # pay estimated taxes based on current year
+            taxable = income[i] + ira_out
+            federal_est, state_est, fedrate_est, fedrate_lcg_est, staterate_est = my.tax(yr, inflation, taxable)
+
             # total expenses of federal tax, state tax, and medicare and planned spending
             spendingi = spending * (1 + inflation)**(yr-start)
-            expenses = federal + state + med + spendingi
+            expenses = federal + state + med + spendingi - federal_est_last - state_est_last + federal_est + state_est
             cumexpenses = cumexpenses + expenses
 
             # pay expenses from savings
             savings = savings - expenses
             savings_out = savings_out + expenses
 
-            # if no more savings, then need to take funds from Roth or IRA
+            # figure out where to take funds from to pay expenses and put any remaining ira_out_extra into Roth
+            # (already brought income to planned max_taxable so IRA would be last source)
             if savings > 0:
-                # have sufficient savings to cover expenses so convert ira_out_extra to Roth if possible
+                # sufficient funds to cover expenses so potentially convert ira_out_extra, if any, to Roth
                 if ira_out_extra <= 0:
-                    # nothing to convert
+                    # nothing available to convert
                     convert = 0
                 elif ira_out_extra > savings:
                     # sufficient savings so convert entire amount
@@ -120,10 +127,18 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
                     roth = roth - take
                     roth_out = roth_out + take
                 else:
-                    # not enough left in Roth to cover expenses, so take remainder from IRA and refigure taxes
+                    # not enough left in Roth to cover expenses, so take remainder from IRA plus enough to cover estimated taxes
                     roth_out = roth_out + roth
                     take = take - roth
                     roth = 0
+
+                    # increase take to cover estimated taxes
+                    expenses = expenses - federal_est - state_est   # remove prior estimated taxes
+                    cumexpenses = cumexpenses - expenses
+                    taxable = income[i] + ira_out + take
+                    federal_est, state_est, fedrate_est, fedrate_lcg_est, staterate_est = my.tax(yr, inflation, taxable)         
+                    take = take + federal_est + state_est
+
                     if ira > take:
                         ira = ira - take
                     else:
@@ -134,11 +149,15 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
                         ira = 0
                     ira_out = ira_out + take
 
-                    taxable = income[i-1] + ira_out
-                    federal, state, fedrate, fedrate_lcg, staterate = my.tax(yr, inflation, taxable)               
-                    cumexpenses = cumexpenses - expenses
-                    expenses = federal + state + med + spending * (1 + inflation)**(yr-start)
-                    cumexpenses = cumexpenses + expenses   # updated with new expenses
+                    # refigure estimated taxes
+                    taxable = income[i] + ira_out
+                    federal_est, state_est, fedrate_est, fedrate_lcg_est, staterate_est = my.tax(yr, inflation, taxable)               
+                    expenses = expenses + federal_est + state_est   # add new estimated taxes
+                    cumexpenses = cumexpenses + expenses
+
+            # store estiamted tax payments
+            federal_est_last = federal_est
+            state_est_last = state_est
 
             # assets in year i; ira discounted for 24% taxes
             assets = savings + roth + (1-0.24)*ira

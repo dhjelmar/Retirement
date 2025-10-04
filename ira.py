@@ -75,7 +75,7 @@ d2m = 1/1E6
 dfsum
 
 #%%
-def plotout(yvar='PVestate', xvar='age', scenario_list=scenario_out):
+def plotout(yvar='PVestate', xvar='age', xlim='auto', ylim='auto', scenario_list=scenario_out):
     # plot function for list of max_taxable scenarios for given marr, roi, and inflation
     # dollars converted to M$
     d2m = 1/1E6
@@ -88,9 +88,14 @@ def plotout(yvar='PVestate', xvar='age', scenario_list=scenario_out):
     marr = scenario_out[i]['marr'][0]
     roi = scenario_out[i]['roi'][0]
     inflation = scenario_out[i]['inflation'][0]
+    if xlim != 'auto':
+        plt.xlim(xlim)
+    if ylim != 'auto':
+        plt.ylim(ylim)
     plt.title(yvar+': MARR='+str(marr)+'; ROI='+str(roi)+'; Inflation='+str(inflation))
     plt.legend
     plt.legend(fontsize=8) # Displays the labels for each line
+    plt.grid(True)
     plt.show()
 
 #plotout(yvar='cumexpenses')   # Taxes, Medicare, and Spending
@@ -99,6 +104,7 @@ def plotout(yvar='PVestate', xvar='age', scenario_list=scenario_out):
 #plotout(yvar='assets_constant_dollars') # assets adjusted to today's dollars (w/ 24% tax assumption)
 #plotout(yvar='PV')            # present value of distributions + assets (w/ 24% tax assumption)
 plotout(yvar='PVestate')       # present value of estate (uses heir income for tax assumption)
+plotout(yvar='PVestate', xlim=(85,100), ylim=(9, 11))
 
 #%%
 i = 3
