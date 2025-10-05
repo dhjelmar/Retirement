@@ -104,7 +104,7 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
                 if ira_out_extra <= 0:
                     # nothing available to convert
                     convert = 0
-                elif ira_out_extra > savings:
+                elif ira_out_extra < savings:
                     # sufficient savings so convert entire amount
                     convert = ira_out_extra
                 else:
