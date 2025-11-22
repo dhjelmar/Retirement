@@ -16,15 +16,15 @@ def checkit(df, expected_savings, expected_roth, expected_ira):
     if expected_savings < 0.01:
         pass1 = abs(actual_savings - expected_savings) < 0.01
     else:
-        pass1 = abs(actual_savings/expected_savings-1)<0.01
+        pass1 = abs(actual_savings/expected_savings-1)<0.001
     if expected_roth < 0.01:
         pass2 = abs(actual_roth - expected_roth) < 0.01
     else:
-        pass2 = abs(actual_roth/expected_roth-1)<0.01
+        pass2 = abs(actual_roth/expected_roth-1)<0.001
     if expected_ira < 0.01:
         pass3 = abs(actual_ira - expected_ira) < 0.01
     else:
-        pass3 = abs(actual_ira/expected_ira-1)<0.01
+        pass3 = abs(actual_ira/expected_ira-1)<0.001
     check = all([pass1, pass2, pass3])
     print('pass?:', check)
     return check
@@ -32,6 +32,9 @@ def checkit(df, expected_savings, expected_roth, expected_ira):
 ##################################################################
 #%% [markdown]
 # VERIFICATION TESTS
+
+#%%
+# setup
 check = []
 dfout = []
 cols = ['year','age','income','rmd','ira_convert','taxable','federal','state','medicare','savings','roth','ira','assets','PV','PVestate']

@@ -34,15 +34,21 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
     rmd = []
     ira_convert = []
     mylist = []
-    ira = ira_initial
-    roth = roth_initial
-    savings = savings_initial
-    federal_est_last = 0    # initialize last year estimated tax payment
+
+    # initialize account objects
+    cash    = my.account(year[0], deposit=0              , rate=0)
+    savings = my.account(year[0], deposit=savings_initial, rate=marr_real)
+    ira     = my.account(year[0], deposit=ira_initial    , rate=marr_real)
+    roth    = my.account(year[0], deposit=roth_initial   , rate=marr_real)
+
+    # initialize last year estimated tax payment
+    federal_est_last = 0
     state_est_last = 0
+
     cumexpenses = 0
     pvcum = 0
     print_broke = True
-    cash = 0
+
     for i,yr in enumerate(year):
         if yr < start:
             rmd.append(0.)

@@ -59,6 +59,7 @@ scenario_out = []
 summary = []
 #max_taxables = [1E9, 500000, 395000, 350000, 300000, 250000, 207000, 150000, 97000]
 max_taxables = [395000, 350000, 300000, 250000, 207000, 97000]
+max_taxables = [300000]
 os.makedirs('output', exist_ok=True)
 for max_taxable in max_taxables:
     df = my.scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
