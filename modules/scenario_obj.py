@@ -36,7 +36,6 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
     mylist = []
 
     # initialize account objects
-    cash    = my.account(year[0], deposit=0              , rate=0)
     savings = my.account(year[0], deposit=savings_initial, rate=marr_real)
     ira     = my.account(year[0], deposit=ira_initial    , rate=marr_real)
     roth    = my.account(year[0], deposit=roth_initial   , rate=marr_real)
@@ -55,7 +54,7 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             ira_convert.append(0.)
         else:
 
-            # cash on hand starts at 0 each year then distributed as needed
+            # cash on hand and expenses start at 0 each year then distributed as needed
             cash = income[i]
 
             # medicare cost based on two years prior
@@ -70,34 +69,21 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             federal, state, fedrate, fedrate_lcg, staterate = my.tax(yr-1, inflation, taxable)
 
             # determine RMD based on prior EOY IRA value for current year age
-            rmd.append(my.rmd(ira, age[i]))
-
-            # initialize how much to take out of various assets
-            savings_out = 0
-            roth_out = 0
-            ira_out = rmd[i]
-            cash = cash + ira_out
+            rmd.append(my.rmd(ira.balance, age[i]))
+            cash = cash + rmd[i]
 
             # determine how much of traditional IRA to convert to Roth or use for expenses to keep total income below max_taxable
-            ira_out_extra = max_taxable - (income[i] + rmd[i])
-            if ira_out_extra < 0:
-                # already above max_taxable so no withdrawal
-                ira_out_extra = 0
-            elif ira_out_extra > ira:
-                # amount to take is more than balance so take balance
-                ira_out_extra = ira
-            ira_out = ira_out + ira_out_extra
-            cash = cash + ira_out_extra
-
-            # increase account remaining values for income and growth; move any IRA withdrawals to cash
-            ira = max((1 + roi)*ira - ira_out, 0)
-            roth = (1 + roi)*roth
-            # assume large fraction of savings is cash so no roi on that fraction
-            cash_fraction = 0.5
-            savings = cash_fraction * savings + (1 + roi)*(1-cash_fraction)*savings
+            if cash < max_taxable:
+                # convert enough to reach max_taxable
+                ira_out = min(max_taxable - cash, ira.balance)
+                ira.withdraw(yr, ira_out)
+                cash = cash + ira_out
+            else:
+                # convert nothing
+                ira_out = 0 
             
-            # pay estimated taxes based on current year
-            taxable = income[i] + ira_out
+            # estimate taxes based on current year
+            taxable = cash
             federal_est, state_est, fedrate_est, fedrate_lcg_est, staterate_est = my.tax(yr, inflation, taxable)
 
             # total expenses of federal tax, state tax, and medicare and planned spending
@@ -105,91 +91,57 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             expenses = federal + state + med + spendingi - federal_est_last - state_est_last + federal_est + state_est
             cumexpenses = cumexpenses + expenses
 
-            # figure out where to take funds from to pay expenses and put any remaining ira_out_extra into Roth
-            # (already brought income to planned max_taxable so IRA would be last source)
+            # pay taxes and put remaining into savings
             if cash >= expenses:
-                # sufficient cash on hand to cover expense so potentially convert ira_out_extra, if any, to Roth
+                # sufficient cash to cover expenses
                 cash = cash - expenses
-                if ira_out_extra <= 0:
-                    # nothing available to convert
-                    convert = 0
-                elif ira_out_extra < cash:
-                    # sufficient cash so convert entire amount
-                    convert = ira_out_extra
-                    cash = cash - convert
-                elif ira_out_extra < cash + savings:
-                    # sufficient cash + savings so convert entire amount
-                    convert = ira_out_extra
-                    if cash >= convert:
-                        # reduce cash by amount of conversion
-                        cash = cash - convert
-                    else:
-                        # reduce savings by amount of conversion not covered by cash
-                        savings_out = savings_out + (convert - cash)
-                        cash = 0
-                        savings = savings - savings_out
-                else:
-                    # insufficient cash + savings to convert entire amount
-                    # could change this to keep a minimum savings amount
-                    minimum_savings = 0.
-                    convert = max(savings - minimum_savings, 0)
-                ira_convert.append(convert)
-                roth = roth + convert
-                roth_out = roth_out - convert
-
+                savings.deposit(yr, cash)
             else:
-                # insufficient cash to cover expenses so take from savings first
+                # use available cash
                 expenses = expenses - cash
                 cash = 0
-                ira_convert.append(0)  # if insufficient savings, then will not convert anything to Roth
-
-                if savings > expenses:
-                    savings = savings - expenses
-                    savings_out = savings_out + expenses
-                    expenses = 0
-
+                if savings.balance >= expenses:
+                    # pay remaining expenses from savings
+                    savings.withdraw(yr, expenses)
                 else:
-                    # insufficient savings to cover expenses so take from Roth IRA first
-                    take = - savings
-                    savings = 0
-                    if roth > take:
-                        roth = roth - take
-                        roth_out = roth_out + take
+                    # use any remainng savings
+                    expenses = expenses - savings.balance
+                    savings.withdraw(yr, savings.balance)   # sets savings to $0
+
+                    if roth.balance >= expenses:
+                        # take rest from Roth
+                        roth.withdraw(yr, expenses)
                     else:
-                        # not enough left in Roth to cover expenses, so take remainder from IRA plus enough to cover estimated taxes
-                        roth_out = roth_out + roth
-                        take = take - roth
-                        roth = 0
+                        # use remaining Roth
+                        expenses = expenses - roth.balance
+                        roth.withdraw(yr, roth.balance)
 
-                        # increase take to cover estimated taxes
-                        expenses = expenses - federal_est - state_est   # remove prior estimated taxes
-                        cumexpenses = cumexpenses - expenses
-                        taxable = income[i] + ira_out + take
-                        federal_est, state_est, fedrate_est, fedrate_lcg_est, staterate_est = my.tax(yr, inflation, taxable)         
-                        take = take + federal_est + state_est
+                        if ira.balance >= expenses:
+                            # take rest from IRA
+                            ira.withdraw(yr, expenses)
 
-                        if ira > take:
-                            ira = ira - take
+                            # refigure estimated taxes
+                            cumexpenses = cumexpenses - federal_est - state_est
+                            taxable = taxable + expenses
+                            federal_est, state_est, fedrate_est, fedrate_lcg_est, staterate_est = my.tax(yr, inflation, taxable)               
+                            cumexpenses = cumexpenses + federal_est + state_est 
+
                         else:
-                            if print_broke == True:
-                                print('## BROKE: year=',yr,' initial spending',spending,'; max taxable',max_taxable)
-                                print_broke = False
-                            take = ira
-                            ira = 0
-                        ira_out = ira_out + take
-
-                        # refigure estimated taxes
-                        taxable = income[i] + ira_out
-                        federal_est, state_est, fedrate_est, fedrate_lcg_est, staterate_est = my.tax(yr, inflation, taxable)               
-                        expenses = expenses + federal_est + state_est   # add new estimated taxes
-                        cumexpenses = cumexpenses + expenses
+                            # insufficient funds to cover expenses
+                            ira.withdraw(yr, ira.balance)
+                            print('## BROKE: year=',yr,' initial spending',spending,'; max taxable',max_taxable)
 
             # store estiamted tax payments
             federal_est_last = federal_est
             state_est_last = state_est
 
+            # increase value of accounts
+            savings.growth(rate=0.02)
+            ira.growth(rate=roi)
+            roth.growth(rate=roi)
+
             # assets in year i; ira discounted for 24% taxes
-            assets = savings + roth + (1-0.24)*ira
+            assets = savings.balance + roth.balance + (1-0.24)*ira.balance
             assets_constant_dollars = assets /( 1 + inflation )**(yr-start)
 
             # present value of cash flow (i.e., expenses) and remaining assets
@@ -197,7 +149,7 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             PV = pvcum + assets / ( 1 + marr_real )**(yr-start)
 
             # pv if add 10 year withdrawal of remaining IRA after taxes
-            distributions, PVestate = my.pv_estate(yr, inflation, ira, roth, savings,
+            distributions, PVestate = my.pv_estate(yr, inflation, ira.balance, roth.balance, savings.balance,
                                                   heir_income, heir_age, roi, marr, heir_factor=heir_factor)
             PVestate = pvcum + PVestate / ( 1 + marr_real )**(yr-start)
 
@@ -215,13 +167,9 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
                            'rmd':round(rmd[i]),
                            'ira_convert':round(ira_convert[i]),
 
-                           'savings_out':round(savings_out),
-                           'roth_out':round(roth_out),
-                           'ira_out':round(ira_out),
-
-                           'savings':round(savings),
-                           'roth':round(roth),
-                           'ira':round(ira),
+                           'savings':round(savings.balance),
+                           'roth':round(roth.balance),
+                           'ira':round(ira.balance),
 
                            'assets':round(assets),
                            'assets_constant_dollars':round(assets_constant_dollars), 
