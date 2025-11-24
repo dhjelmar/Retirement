@@ -81,6 +81,7 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             else:
                 # convert nothing
                 ira_out = 0 
+            ira_convert.append(ira_out)
             
             # estimate taxes based on current year
             taxable = cash

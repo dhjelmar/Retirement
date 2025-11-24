@@ -39,6 +39,7 @@ check = []
 dfout = []
 cols = ['year','age','income','rmd','ira_convert','taxable','federal','state','medicare','savings','roth','ira','assets','PV','PVestate']
 cols = ['year','age','income','savings_out','roth_out','ira_out','taxable','federal','state','medicare','savings','roth','ira','assets','PV','PVestate']
+cols = ['year','age','income','savings','roth','ira','taxable','federal','state','medicare','assets','PV','PVestate']
 
 #%%
 # test
