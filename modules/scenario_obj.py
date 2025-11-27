@@ -5,7 +5,7 @@ import modules as my
 #%%
 def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
              income, ira_initial, roth_initial, savings_initial,
-             heir_yob, heir_income, heir_factor):
+             heir_yob, heir_income, heir_factor, savings_rate=0.02, taxes=True, medicare=True):
     '''
     spending    = starting planned spending to be increased with inflation
     max_taxable = value to keep income below
@@ -15,6 +15,7 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
                   need to include 2 years before start for medicare cost
     age         = list of ages corresponding to year list of individual to be used in evaluation for IRA RMDs
     income      = list of income corresponding to year list
+                  should include work, pension, and social security
     ira_initial   = value of traditional IRA in start year
     rmd         = list of RMDs
     ira_convert = list of planned conversions from regular IRA to Roth
@@ -46,7 +47,6 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
 
     cumexpenses = 0
     pvcum = 0
-    print_broke = True
 
     for i,yr in enumerate(year):
         if yr < start:
@@ -54,19 +54,25 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             ira_convert.append(0.)
         else:
 
+            #if age[i] > 72:
+            #    breakpoint()
+
             # cash on hand and expenses start at 0 each year then distributed as needed
             cash = income[i]
 
             # medicare cost based on two years prior
             agi_medicare = income[i-2] + rmd[i-2] + ira_convert[i-2]
-            if age[i] < 65:
+            if (age[i] < 65) | (medicare == False):
                 med = 0
             else:
                 med = my.medicare(agi_medicare)
-                
+
             # total taxable income and associated taxes based on prior year
             taxable = income[i-1] + rmd[i-1] + ira_convert[i-1]
-            federal, state, fedrate, fedrate_lcg, staterate = my.tax(yr-1, inflation, taxable)
+            if taxes:    
+                federal, state, fedrate, fedrate_lcg, staterate = my.tax(yr-1, inflation, taxable)
+            else:
+                federal = state = fedrate = fedrate_lcg = staterate = 0
 
             # determine RMD based on prior EOY IRA value for current year age
             rmd.append(my.rmd(ira.balance, age[i]))
@@ -85,7 +91,10 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             
             # estimate taxes based on current year
             taxable = cash
-            federal_est, state_est, fedrate_est, fedrate_lcg_est, staterate_est = my.tax(yr, inflation, taxable)
+            if taxes:
+                federal_est, state_est, fedrate_est, fedrate_lcg_est, staterate_est = my.tax(yr, inflation, taxable)
+            else:
+                federal_est = state_est = fedrate_est = fedrate_lcg_est = staterate_est = 0
 
             # total expenses of federal tax, state tax, and medicare and planned spending
             spendingi = spending * (1 + inflation)**(yr-start)
@@ -137,7 +146,7 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             state_est_last = state_est
 
             # increase value of accounts
-            savings.growth(rate=0.02)
+            savings.growth(rate=savings_rate)
             ira.growth(rate=roi)
             roth.growth(rate=roi)
 

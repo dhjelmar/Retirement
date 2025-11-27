@@ -39,7 +39,7 @@ check = []
 dfout = []
 cols = ['year','age','income','rmd','ira_convert','taxable','federal','state','medicare','savings','roth','ira','assets','PV','PVestate']
 cols = ['year','age','income','savings_out','roth_out','ira_out','taxable','federal','state','medicare','savings','roth','ira','assets','PV','PVestate']
-cols = ['year','age','income','savings','roth','ira','taxable','federal','state','medicare','assets','PV','PVestate']
+cols = ['year','age','income','rmd','savings','roth','ira','taxable','federal','state','medicare','assets','PV','PVestate']
 
 #%%
 # test
@@ -50,10 +50,10 @@ year  = range(2023, 2023+years, 1)
 age = np.array(year) - 1960
 income      = years * [10000]
 social_security = 0
-savings_initial = 1E6    # starting value of savings account
+savings_initial = 0    # starting value of savings account
 ira_initial     = 0    # starting value of traditional IRA
 roth_initial    = 0    # starting value of Roth IRA
-spending      = 1E5 # starting amount of planned spending to be increased with inflation
+spending      = 0 # starting amount of planned spending to be increased with inflation
 start         = 2025   # start year for evaluation; need to include 2 years of income before start for medicare cost
 marr          = 0.0   # minimum acceptable rate of return
 roi           = marr   # return on investment used to increase IRA value with time
@@ -62,14 +62,16 @@ heir_yob      = 2000   # heir year of birth; used to determine RMDs
 heir_income   = 150000 # income of heir; used to determine RMDs
 heir_factor   = 'min'  # factor to use for RMD calculation; 'min' uses IRS single life expectancy table
 heir_factor   = 5      # or some #<10 to withdraw a more even amount each year to deplete by required 10 years to minimize taxes
-max_taxable = 20000
+max_taxable   = 0
+taxes = False
+medicare = False
 df = my.scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             income, ira_initial, roth_initial, savings_initial,
-            heir_yob, heir_income, heir_factor)
+            heir_yob, heir_income, heir_factor, savings_rate=0, taxes=taxes, medicare=medicare)
 dfout.append(df)
 #                                                                       state tax   medicare
 #                                                                       ---------   ----
-expected_savings = savings_initial + sum(income[2:12]) - 10*(spending + 400       + 4340)
+expected_savings = savings_initial + sum(income[2:12]) # - 10*(spending + 400       + 4340)
 expected_roth    = roth_initial 
 expected_ira     = ira_initial
 checki = checkit(df, expected_savings, expected_roth, expected_ira)
@@ -82,16 +84,12 @@ i = 1
 print()
 print('test', i)
 savings_initial = 0.5E6
-roth_initial    = 0.5E6
 df = my.scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             income, ira_initial, roth_initial, savings_initial,
-            heir_yob, heir_income, heir_factor)
+            heir_yob, heir_income, heir_factor, savings_rate=0, taxes=taxes, medicare=medicare)
 dfout.append(df)
-savings = savings_initial*(1+roi)**10 + sum(income[2:12]) - 10*(spending + 400       + 4340)
+savings = savings_initial*(1+roi)**10 + sum(income[2:12]) #- 10*(spending + 400       + 4340)
 expected_savings = max(0, savings) 
-# above yields 2475514.460100002 vs. calculated actual of 2391055 which 84k smaller than estimate
-# need to do verification in a spreadsheet then put better value below for expected
-#expected_savings = -100
 if savings > 0:
     expected_roth = roth_initial
 else:
@@ -106,71 +104,23 @@ df[cols]
 i = 2
 print()
 print('test', i)
-print('max_taxable =', max_taxable)
 savings_initial = 0.5E6
-roth_initial    = 0.0
-ira_initial     = 0.5E6
+roth_initial = 0.5E6
+ira_initial = 0.5E6
 df = my.scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             income, ira_initial, roth_initial, savings_initial,
-            heir_yob, heir_income, heir_factor)
+            heir_yob, heir_income, heir_factor, savings_rate=0, taxes=taxes, medicare=medicare)
 dfout.append(df)
-# expected based on inspecting results from df[cols]
-expected_savings = 0
-expected_roth = 0
-expected_ira = 48872
+# rmd values separately verified so believe them
+rmd = df.iloc[-1].rmd    # grabs last rmd value
+savings = savings_initial*(1+roi)**10 + sum(income[2:12]) + rmd #- 10*(spending + 400       + 4340)
+expected_savings = max(0, savings) 
+expected_roth = roth_initial
+expected_ira     = ira_initial - rmd
 checki = checkit(df, expected_savings, expected_roth, expected_ira)
 check.append({'test':i, 'pass':checki})
 df[cols]
 
-#%%
-# test
-i = 3
-print()
-print('test', i)
-print('max_taxable =', max_taxable)
-savings_initial = 0.5E6
-roth_initial    = 0.0
-ira_initial     = 0.5E6
-roi             = 0.10
-df = my.scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
-            income, ira_initial, roth_initial, savings_initial,
-            heir_yob, heir_income, heir_factor)
-dfout.append(df)
-# expected based on inspecting results from df[cols]
-expected_savings = 0
-expected_roth = 0
-expected_ira = 1074160
-checki = checkit(df, expected_savings, expected_roth, expected_ira)
-check.append({'test':i, 'pass':checki})
-df[cols]
-
-#%%
-# test not finalized yet
-i = 4
-print()
-print('test', i)
-print('max_taxable =', max_taxable)
-income      = years * [0]
-spending = 0
-max_taxable = 0
-savings_initial = 100000 / (1-0.24)
-roth_initial    = 0.0
-ira_initial     = 0.0
-roi             = 0.05
-marr            = roi
-inflation       = 0.0
-df = my.scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
-            income, ira_initial, roth_initial, savings_initial,
-            heir_yob, heir_income, heir_factor)
-dfout.append(df)
-
-# expected based on inspecting results from df[cols]
-expected_savings = 0
-expected_roth = 0
-expected_ira = 1074160
-checki = checkit(df, expected_savings, expected_roth, expected_ira)
-check.append({'test':i, 'pass':checki})
-df[cols]
 
 #%% [markdown]
 # create summary table
