@@ -19,6 +19,10 @@ def rmd(value, age, out='rmd', rmd_uniform_life_table=rmd_uniform_life_table):
 
 #%%
 def rmd_test():
+
+    rmd_uniform_life_table = pd.read_csv(os.path.join('input', 'rmd_uniform_life_verification.csv'))
+    rmd_uniform_life_table.columns = rmd_uniform_life_table.columns.str.strip()   # remove leading and trailing spaces
+
     test = []
     value = 1E6
 

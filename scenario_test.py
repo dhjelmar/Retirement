@@ -106,17 +106,21 @@ print()
 print('test', i)
 savings_initial = 0.5E6
 roth_initial = 0.5E6
-ira_initial = 0.5E6
+ira_initial = 1.E6
 df = my.scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             income, ira_initial, roth_initial, savings_initial,
             heir_yob, heir_income, heir_factor, savings_rate=0, taxes=taxes, medicare=medicare)
 dfout.append(df)
-# rmd values separately verified so believe them
-rmd = df.iloc[-1].rmd    # grabs last rmd value
-savings = savings_initial*(1+roi)**10 + sum(income[2:12]) + rmd #- 10*(spending + 400       + 4340)
+#rmd = df.iloc[-1].rmd    # grabs last rmd value
+# hand calculate the 2 RMDs
+ira_age_72 = df.loc[df.age==72,'ira'].iloc[0]
+rmd_73 = ira_age_72 / 26.5
+rmd_74 = (ira_age_72 - rmd_73) / 25.5
+rmds = rmd_73 + rmd_74
+savings = savings_initial*(1+roi)**10 + sum(income[2:12]) + rmds #- 10*(spending + 400       + 4340)
 expected_savings = max(0, savings) 
 expected_roth = roth_initial
-expected_ira     = ira_initial - rmd
+expected_ira     = ira_initial - rmds
 checki = checkit(df, expected_savings, expected_roth, expected_ira)
 check.append({'test':i, 'pass':checki})
 df[cols]

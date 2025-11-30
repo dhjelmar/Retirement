@@ -77,6 +77,7 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             # determine RMD based on prior EOY IRA value for current year age
             rmd.append(my.rmd(ira.balance, age[i]))
             cash = cash + rmd[i]
+            ira.withdraw(yr, rmd[i])
 
             # determine how much of traditional IRA to convert to Roth or use for expenses to keep total income below max_taxable
             if cash < max_taxable:
@@ -146,9 +147,9 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             state_est_last = state_est
 
             # increase value of accounts
-            savings.growth(rate=savings_rate)
-            ira.growth(rate=roi)
-            roth.growth(rate=roi)
+            savings.growth(yr, rate=savings_rate)
+            ira.growth(yr, rate=roi)
+            roth.growth(yr, rate=roi)
 
             # assets in year i; ira discounted for 24% taxes
             assets = savings.balance + roth.balance + (1-0.24)*ira.balance
