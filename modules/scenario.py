@@ -69,12 +69,16 @@ class scenario():
         state_est_last = 0
 
         cumexpenses = 0
-        pvcum = 0
+        PV = 0
 
         for i,yr in enumerate(year):
             if yr < start:
                 rmd.append(0.)
                 ira_convert.append(0.)
+                assets_last = savings.balance + roth.balance + (1-0.24)*ira.balance
+                distributions, PVestate_last = my.pv_estate(yr, inflation, ira.balance, roth.balance, savings.balance,
+                                                    heir_income, heir_age, roi, marr, heir_factor=heir_factor)
+
             else:
 
                 #if age[i] > 72:
@@ -120,7 +124,7 @@ class scenario():
                     federal_est = state_est = fedrate_est = fedrate_lcg_est = staterate_est = 0
 
                 # total expenses of federal tax, state tax, and medicare and planned spending
-                spendingi = spending * (1 + inflation)**(yr-start)
+                spendingi = spending * (1 + inflation)**(yr-start+1)
                 expenses = federal + state + med + spendingi - federal_est_last - state_est_last + federal_est + state_est
                 cumexpenses = cumexpenses + expenses
 
@@ -188,16 +192,17 @@ class scenario():
 
                 # assets in year i; ira discounted for 24% taxes
                 assets = savings.balance + roth.balance + (1-0.24)*ira.balance
-                assets_constant_dollars = assets /( 1 + inflation )**(yr-start)
+                assets_constant_dollars = assets /( 1 + inflation )**(yr-start+1)
 
-                # present value of cash flow (i.e., expenses) and remaining assets
-                pvcum = pvcum + expenses / ( 1 + marr_real )**(yr-start)
-                PV = pvcum + assets / ( 1 + marr_real )**(yr-start)
+                # present value of cash flow (i.e., change in asset value)
+                PV = PV + (assets - assets_last) / ( 1 + marr_real )**(yr-start+1)
+                assets_last = assets
 
                 # pv if add 10 year withdrawal of remaining IRA after taxes
                 distributions, PVestate = my.pv_estate(yr, inflation, ira.balance, roth.balance, savings.balance,
                                                     heir_income, heir_age, roi, marr, heir_factor=heir_factor)
-                PVestate = pvcum + PVestate / ( 1 + marr_real )**(yr-start)
+                PVestate = PV + (PVestate - PVestate_last) / ( 1 + marr_real )**(yr-start+1)
+                PVestate_last = PVestate
 
                 # save results
                 #if yr == 2037:
@@ -243,7 +248,7 @@ class scenario():
         self.ira = ira
         self.roth = roth
 
-    def plot(self, yvar=['PVestate','savings','roth','ira'], xvar='age', xlim='auto', ylim='auto'):
+    def plot(self, yvar=['assets_constant_dollars','savings','roth','ira'], xvar='age', xlim='auto', ylim='auto'):
         # dollars converted to M$
         d2m = 1/1E6
         #label=str('limit: '+str(round(self.max_taxable*d2m,3))+'; PVestate='+str(round(self.df.PVestate[len(self.df.PVestate)-1]*d2m,3)))
