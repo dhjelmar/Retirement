@@ -407,7 +407,7 @@ for (i in 2:ncol(totalvalue)) {
     lines(Date, t(totalvalue[i]), type='l')
 }
 
-## Construct Confidential Intervals for returns
+## Construct Confidence Intervals for returns
 ## first define function
 ci <- function(df, conf) {
     ## calculate confidence limit for specified confidence level

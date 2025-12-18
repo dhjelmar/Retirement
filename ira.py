@@ -76,29 +76,6 @@ d2m = 1/1E6
 dfsum
 
 #%%
-def plotout(yvar='PVestate', xvar='age', xlim='auto', ylim='auto', scenario_list=scenario_out):
-    # plot function for list of max_taxable scenarios for given marr, roi, and inflation
-    # dollars converted to M$
-    d2m = 1/1E6
-    for i in range(0,len(scenario_list)):
-        df = scenario_list[i]
-        label=str(i)+'. limit: '+str(round(df.max_taxable[0]*d2m,3))+'; PVestate='+str(round(df.PVestate[len(df.PVestate)-1]*d2m,3))
-        plt.plot(df[xvar], df[yvar]*d2m, label=label)
-    plt.xlabel(xvar)
-    plt.ylabel(yvar)
-    marr = scenario_out[i]['marr'][0]
-    roi = scenario_out[i]['roi'][0]
-    inflation = scenario_out[i]['inflation'][0]
-    if xlim != 'auto':
-        plt.xlim(xlim)
-    if ylim != 'auto':
-        plt.ylim(ylim)
-    plt.title(yvar+': MARR='+str(marr)+'; ROI='+str(roi)+'; Inflation='+str(inflation))
-    plt.legend
-    plt.legend(fontsize=8) # Displays the labels for each line
-    plt.grid(True)
-    plt.show()
-
 #plotout(yvar='cumexpenses')   # Taxes, Medicare, and Spending
 #plotout(yvar='taxable')       # taxable income
 #plotout(yvar='assets')        # savings + Roth + discoutned IRA for 24% taxes
