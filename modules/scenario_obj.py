@@ -81,14 +81,13 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
 
             # determine how much of traditional IRA to convert to Roth or use for expenses to keep total income below max_taxable
             if cash < max_taxable:
-                # convert enough to reach max_taxable
+                # withdraw enough above RMD to reach max_taxable
                 ira_out = min(max_taxable - cash, ira.balance)
                 ira.withdraw(yr, ira_out)
                 cash = cash + ira_out
             else:
-                # convert nothing
+                # withdraw nothing above RMD
                 ira_out = 0 
-            ira_convert.append(ira_out)
             
             # estimate taxes based on current year
             taxable = cash
@@ -102,11 +101,24 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             expenses = federal + state + med + spendingi - federal_est_last - state_est_last + federal_est + state_est
             cumexpenses = cumexpenses + expenses
 
-            # pay taxes and put remaining into savings
+            # pay taxes and put remaining into savings or Roth possible
             if cash >= expenses:
                 # sufficient cash to cover expenses
                 cash = cash - expenses
+
+                if (ira_out > 0):
+                    # put available remaining cash up to value of ira_out into roth
+                    convert = min(cash, ira_out)
+                    ira_convert.append(convert)
+                    roth.deposit(yr, convert)
+                    
+                else:
+                    ira_convert.append(0.)
+
+                # put remaining cash into savings
+                cash = cash - ira_out
                 savings.deposit(yr, cash)
+
             else:
                 # use available cash
                 expenses = expenses - cash
@@ -204,6 +216,6 @@ def scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
 
     df = pd.DataFrame(mylist)
 
-    return df
+    return df, savings, ira, roth
 
 # %%

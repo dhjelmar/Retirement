@@ -39,12 +39,13 @@ check = []
 dfout = []
 cols = ['year','age','income','rmd','ira_convert','taxable','federal','state','medicare','savings','roth','ira','assets','PV','PVestate']
 cols = ['year','age','income','savings_out','roth_out','ira_out','taxable','federal','state','medicare','savings','roth','ira','assets','PV','PVestate']
-cols = ['year','age','income','rmd','savings','roth','ira','taxable','federal','state','medicare','assets','PV','PVestate']
+cols = ['year','age','income','rmd','ira_convert','savings','roth','ira','taxable','federal','state','medicare','assets','PV','PVestate']
 
 #%%
 # test
 i = 0
-print('test', i)
+title = 'income, no savings/ira/roth, no marr/roi/inflation, max_taxable=0, no taxes or medicare'
+print('test', i, '; title:', title)
 years = 12
 year  = range(2023, 2023+years, 1)
 age = np.array(year) - 1960
@@ -65,7 +66,7 @@ heir_factor   = 5      # or some #<10 to withdraw a more even amount each year t
 max_taxable   = 0
 taxes = False
 medicare = False
-df = my.scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
+df, savings, ira, roth = my.scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             income, ira_initial, roth_initial, savings_initial,
             heir_yob, heir_income, heir_factor, savings_rate=0, taxes=taxes, medicare=medicare)
 dfout.append(df)
@@ -75,16 +76,17 @@ expected_savings = savings_initial + sum(income[2:12]) # - 10*(spending + 400   
 expected_roth    = roth_initial 
 expected_ira     = ira_initial
 checki = checkit(df, expected_savings, expected_roth, expected_ira)
-check.append({'test':i, 'pass':checki})
+check.append({'test':i, 'pass':checki, 'title':title})
 df[cols]
 
 #%%
 # test
 i = 1
 print()
-print('test', i)
+title = 'same but $500k initial savings'
+print('test', i, '; title:', title)
 savings_initial = 0.5E6
-df = my.scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
+df, savings, ira, roth = my.scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             income, ira_initial, roth_initial, savings_initial,
             heir_yob, heir_income, heir_factor, savings_rate=0, taxes=taxes, medicare=medicare)
 dfout.append(df)
@@ -96,18 +98,19 @@ else:
     expected_roth = roth_initial + savings
 expected_ira     = ira_initial
 checki = checkit(df, expected_savings, expected_roth, expected_ira)
-check.append({'test':i, 'pass':checki})
+check.append({'test':i, 'pass':checki, 'title':title})
 df[cols]
 
 #%%
 # test
 i = 2
 print()
-print('test', i)
+title = 'same plus initial $500k roth + $1M ira'
+print('test', i, '; title:', title)
 savings_initial = 0.5E6
 roth_initial = 0.5E6
 ira_initial = 1.E6
-df = my.scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
+df, savings, ira, roth = my.scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
             income, ira_initial, roth_initial, savings_initial,
             heir_yob, heir_income, heir_factor, savings_rate=0, taxes=taxes, medicare=medicare)
 dfout.append(df)
@@ -122,9 +125,30 @@ expected_savings = max(0, savings)
 expected_roth = roth_initial
 expected_ira     = ira_initial - rmds
 checki = checkit(df, expected_savings, expected_roth, expected_ira)
-check.append({'test':i, 'pass':checki})
+check.append({'test':i, 'pass':checki, 'title':title})
 df[cols]
 
+#%%
+# test
+i = 3
+print()
+title = 'same but max_taxable=$250k to exercise ira conversions adding to Roth'
+print('test', i, '; title:', title)
+savings_initial = 0.5E6
+roth_initial = 0.5E6
+ira_initial = 1.E6
+max_taxable = 250000
+df, savings, ira, roth = my.scenario(spending, max_taxable, marr, roi, inflation, start, year, age,
+            income, ira_initial, roth_initial, savings_initial,
+            heir_yob, heir_income, heir_factor, savings_rate=0, taxes=taxes, medicare=medicare)
+dfout.append(df)
+# expectation
+expected_savings = savings_initial + sum(income[2:12])
+expected_roth    = roth_initial + ira_initial
+expected_ira     = 0
+checki = checkit(df, expected_savings, expected_roth, expected_ira)
+check.append({'test':i, 'pass':checki, 'title':title})
+df[cols]
 
 #%% [markdown]
 # create summary table
@@ -132,5 +156,6 @@ dfcheck = pd.DataFrame(check)
 dfcheck
 
 #%%
+# print results from test 1
 dfout[1][cols]
 #%%
