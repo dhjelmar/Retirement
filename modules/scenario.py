@@ -23,9 +23,10 @@ class scenario():
     heir_factor = factor to use for RMD calculation; 'min' uses IRS single life expectancy table
     '''
     
-    def __init__(self, spending, max_taxable, marr, roi, inflation, start, year, age,
+    def __init__(self, spending, max_taxable, marr, roi, roi_savings, inflation, 
+                 start, year, age,
                  income, ira_initial, roth_initial, savings_initial,
-                 heir_yob, heir_income, heir_factor, savings_rate=0.02, taxes=True, medicare=True):
+                 heir_yob, heir_income, heir_factor, taxes=True, medicare=True):
 
         # expose input to self
         self.spending=spending
@@ -43,7 +44,7 @@ class scenario():
         self.heir_yob=heir_yob
         self.heir_income=heir_income
         self.heir_factor=heir_factor
-        self.savings_rate=savings_rate
+        self.roi_savings=roi_savings
         self.taxes=taxes
         self.medicare=medicare
 
@@ -60,9 +61,9 @@ class scenario():
         mylist = []
 
         # initialize account objects
-        savings = my.account(year[0], deposit=savings_initial, rate=marr_real)
-        ira     = my.account(year[0], deposit=ira_initial    , rate=marr_real)
-        roth    = my.account(year[0], deposit=roth_initial   , rate=marr_real)
+        savings = my.account('savings', year[0], deposit=savings_initial, rate=marr_real)
+        ira     = my.account('ira', year[0], deposit=ira_initial    , rate=marr_real)
+        roth    = my.account('roth', year[0], deposit=roth_initial   , rate=marr_real)
 
         # initialize last year estimated tax payment
         federal_est_last = 0
@@ -70,14 +71,15 @@ class scenario():
 
         cumexpenses = 0
         PV = 0
+        PVestate = 0
 
         for i,yr in enumerate(year):
             if yr < start:
                 rmd.append(0.)
                 ira_convert.append(0.)
                 assets_last = savings.balance + roth.balance + (1-0.24)*ira.balance
-                distributions, PVestate_last = my.pv_estate(yr, inflation, ira.balance, roth.balance, savings.balance,
-                                                    heir_income, heir_age, roi, marr, heir_factor=heir_factor)
+                PVestate_i_last = my.pv_estate(yr, inflation, ira.balance, roth.balance, savings.balance,
+                                               heir_income, heir_age, roi, marr, heir_factor=heir_factor)
 
             else:
 
@@ -104,13 +106,13 @@ class scenario():
                 # determine RMD based on prior EOY IRA value for current year age
                 rmd.append(my.rmd(ira.balance, age[i]))
                 cash = cash + rmd[i]
-                ira.withdraw(yr, rmd[i])
+                ira.withdraw(yr, rmd[i], note='RMD')
 
                 # determine how much of traditional IRA to convert to Roth or use for expenses to keep total income below max_taxable
                 if cash < max_taxable:
                     # withdraw enough above RMD to reach max_taxable
                     ira_out = min(max_taxable - cash, ira.balance)
-                    ira.withdraw(yr, ira_out)
+                    ira.withdraw(yr, ira_out, note='extra out up to max_taxable income')
                     cash = cash + ira_out
                 else:
                     # withdraw nothing above RMD
@@ -133,42 +135,48 @@ class scenario():
                     # sufficient cash to cover expenses
                     cash = cash - expenses
 
-                    if (ira_out > 0):
-                        # put available remaining cash up to value of ira_out into roth
-                        convert = min(cash, ira_out)
-                        ira_convert.append(convert)
-                        roth.deposit(yr, convert)
-                        
+                    if (cash > 0)&(ira_out > 0):
+                        if cash > ira_out:
+                            ira_convert.append(ira_out)
+                            roth.deposit(yr, ira_out, note='IRA conversion to Roth')
+                            cash = cash - ira_out
+                        else:
+                            ira_convert.append(cash)
+                            roth.deposit(yr, cash, note='IRA conversion to Roth')
+                            cash = 0.
+
                     else:
                         ira_convert.append(0.)
 
-                    # put remaining cash into savings
-                    cash = cash - ira_out
-                    savings.deposit(yr, cash)
+                    if cash > 0:
+                        # put remaining cash into savings
+                        savings.deposit(yr, cash, note='remaining cash from income, RMDs, etc. into savings')
 
                 else:
                     # use available cash
                     expenses = expenses - cash
                     cash = 0
+                    ira_convert.append(0.)
+
                     if savings.balance >= expenses:
                         # pay remaining expenses from savings
-                        savings.withdraw(yr, expenses)
+                        savings.withdraw(yr, expenses, note='cash + savings needed to pay expenses')
                     else:
                         # use any remainng savings
                         expenses = expenses - savings.balance
-                        savings.withdraw(yr, savings.balance)   # sets savings to $0
+                        savings.withdraw(yr, savings.balance, note='cash + savings plus to pay expenses')   # sets savings to $0
 
                         if roth.balance >= expenses:
                             # take rest from Roth
-                            roth.withdraw(yr, expenses)
+                            roth.withdraw(yr, expenses, note='cash, savings, + some Roth needed to pay expenses')
                         else:
                             # use remaining Roth
                             expenses = expenses - roth.balance
-                            roth.withdraw(yr, roth.balance)
+                            roth.withdraw(yr, roth.balance, note='cash, savings, + Roth plus needed to pay expenses')
 
                             if ira.balance >= expenses:
                                 # take rest from IRA
-                                ira.withdraw(yr, expenses)
+                                ira.withdraw(yr, expenses, note='cash, savings, Roth, + some IRA needed to pay expenses')
 
                                 # refigure estimated taxes
                                 cumexpenses = cumexpenses - federal_est - state_est
@@ -178,7 +186,7 @@ class scenario():
 
                             else:
                                 # insufficient funds to cover expenses
-                                ira.withdraw(yr, ira.balance)
+                                ira.withdraw(yr, ira.balance, note='BROKE: cash, savings, Roth + IRA not sufficient to cover expenses')
                                 print('## BROKE: year=',yr,' initial spending',spending,'; max taxable',max_taxable)
 
                 # store estiamted tax payments
@@ -186,23 +194,25 @@ class scenario():
                 state_est_last = state_est
 
                 # increase value of accounts
-                savings.growth(yr, rate=savings_rate)
+                savings.growth(yr, rate=roi_savings)
                 ira.growth(yr, rate=roi)
                 roth.growth(yr, rate=roi)
 
                 # assets in year i; ira discounted for 24% taxes
                 assets = savings.balance + roth.balance + (1-0.24)*ira.balance
-                assets_constant_dollars = assets /( 1 + inflation )**(yr-start+1)
+
+                # assets in constant dollars
+                assets_cd = assets /( 1 + inflation )**(yr-start+1)
 
                 # present value of cash flow (i.e., change in asset value)
                 PV = PV + (assets - assets_last) / ( 1 + marr_real )**(yr-start+1)
                 assets_last = assets
 
                 # pv if add 10 year withdrawal of remaining IRA after taxes
-                distributions, PVestate = my.pv_estate(yr, inflation, ira.balance, roth.balance, savings.balance,
-                                                    heir_income, heir_age, roi, marr, heir_factor=heir_factor)
-                PVestate = PV + (PVestate - PVestate_last) / ( 1 + marr_real )**(yr-start+1)
-                PVestate_last = PVestate
+                PVestate_i = my.pv_estate(yr, inflation, ira.balance, roth.balance, savings.balance,
+                                          heir_income, heir_age, roi, marr, heir_factor=heir_factor)
+                PVestate = PVestate + (PVestate_i - PVestate_i_last) / ( 1 + marr_real )**(yr-start+1)
+                PVestate_i_last = PVestate_i
 
                 # save results
                 #if yr == 2037:
@@ -216,6 +226,7 @@ class scenario():
                             'age':age[i],
                             'income':income[i],
                             'rmd':round(rmd[i]),
+                            'ira_out':round(ira_out),
                             'ira_convert':round(ira_convert[i]),
 
                             'savings':round(savings.balance),
@@ -223,7 +234,7 @@ class scenario():
                             'ira':round(ira.balance),
 
                             'assets':round(assets),
-                            'assets_constant_dollars':round(assets_constant_dollars), 
+                            'assets_cd':round(assets_cd), 
                             'PV':round(PV),
                             'PVestate':round(PVestate),
 
@@ -248,7 +259,7 @@ class scenario():
         self.ira = ira
         self.roth = roth
 
-    def plot(self, yvar=['assets_constant_dollars','savings','roth','ira'], xvar='age', xlim='auto', ylim='auto'):
+    def plot(self, yvar=['assets_cd','savings','roth','ira'], xvar='age', xlim='auto', ylim='auto'):
         # dollars converted to M$
         d2m = 1/1E6
         #label=str('limit: '+str(round(self.max_taxable*d2m,3))+'; PVestate='+str(round(self.df.PVestate[len(self.df.PVestate)-1]*d2m,3)))

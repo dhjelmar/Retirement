@@ -73,12 +73,9 @@ def pv_estate(year, inflation, ira_remaining, roth_remaining, savings_remaining,
     input: heir_factor = 'min' (default) uses IRS single life expectacy table which removes most in last year
                        = 10 (or maybe a bit lower) would withdraw a more even amount each year over 10 years to minimize taxes
     '''
-
-    # determine present value of Roth IRA and savings
-    pv = roth_remaining + savings_remaining
-    
+ 
     # determine total PV for 10 years of distributions from IRA to deplete value
-    distributions = []
+    pv_ira = 0
     for i in range(0,10):
 
         # rmd_estate
@@ -89,17 +86,12 @@ def pv_estate(year, inflation, ira_remaining, roth_remaining, savings_remaining,
         federal_before_rmd, state_before_rmd, fedrate, fedrate_lcg, staterate  = my.tax(year, inflation, heir_income, lcg=0)
         rmd_after_tax = rmd - (federal_after_rmd-federal_before_rmd) - (state_after_rmd-state_before_rmd)
 
-        # PV
-        pvi = rmd / (1+marr_real)**i
-        pv = pv + pvi
+        # pv of ira distributions
+        pv_ira = pv_ira + rmd / (1+marr_real)**i
+        
+    pv = roth_remaining + savings_remaining + pv_ira
 
-        distributions.append({'heir_age':heir_age, 'heir_income':heir_income, 'roi':roi, 'marr_real':marr_real,
-                              'ira_remaining':round(ira_remaining), 'factor':round(factor), 
-                              'rmd':round(rmd), 'rmd_after_tax':round(rmd_after_tax),
-                              'pvi':round(pvi), 'pv':round(pv)})
-
-    distributions = pd.DataFrame(distributions)
-    return distributions, round(pv)
+    return round(pv)
 
 #%%
 def pv_estate_test():
@@ -112,16 +104,16 @@ def pv_estate_test():
     inflation = 0.025
 
     # Test with heir_factor as 'min' and a factor of min
-    answer, answer_pv = pv_estate(year, inflation, ira_remaining, 0, 0, heir_income, heir_age, roi, heir_factor='min')
-    test.append({'test':0, 'answer':answer, 'correct=0':round(answer_pv - 1016395)})  # still need to check all 3 answers
+    answer_pv = pv_estate(year, inflation, ira_remaining, 0, 0, heir_income, heir_age, roi, heir_factor='min')
+    test.append({'test':0, 'correct=0':round(answer_pv - 1016395)})  # still need to check all 3 answers
 
     # Test with heir_factor as 'min' and a factor of 5
-    answer, answer_pv = pv_estate(year, inflation, ira_remaining, 0, 0, heir_income, heir_age, roi, heir_factor=5)
-    test.append({'test':0, 'answer':answer, 'correct=0':round(answer_pv - 1059128)})
+    answer_pv = pv_estate(year, inflation, ira_remaining, 0, 0, heir_income, heir_age, roi, heir_factor=5)
+    test.append({'test':1, 'correct=0':round(answer_pv - 1059128)})
 
     # Test with heir_factor as 'min' and a factor of 10
-    answer, answer_pv = pv_estate(year, inflation, ira_remaining, 0, 0, heir_income, heir_age, roi, heir_factor=10)
-    test.append({'test':0, 'answer':answer, 'correct=0':round(answer_pv - 1041054)})
+    answer_pv = pv_estate(year, inflation, ira_remaining, 0, 0, heir_income, heir_age, roi, heir_factor=10)
+    test.append({'test':2, 'correct=0':round(answer_pv - 1041054)})
 
     df = pd.DataFrame(test)
 

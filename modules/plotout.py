@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 
-def plotout(scenario, yvar='PVestate', xvar='age', xlim='auto', ylim='auto'):
+def plotout(scenario, yvar='assets', xvar='age', xlim='auto', ylim='auto'):
     # plot function for list of max_taxable scenarios for given marr, roi, and inflation
     # dollars converted to M$
     d2m = 1/1E6
@@ -15,7 +15,7 @@ def plotout(scenario, yvar='PVestate', xvar='age', xlim='auto', ylim='auto'):
         #label=str(i)+'. limit: $'+str(round(df.max_taxable[0]*d2m,3))+'M; PVestate='+str(round(df.PVestate[len(df.PVestate)-1]*d2m,3))
         label=str(i)+'. limit: $'+str(round(df.max_taxable[0]*d2m,3)) \
               + 'M; MARR='+str(marr) + '; ROI='+str(roi) + '; inflation='+str(inflation) \
-              + '; PVestate='+str(round(df.PVestate[len(df.PVestate)-1]*d2m,3))
+              + '; assets='+str(round(df.assets.iloc[-1]*d2m,3))
         plt.plot(df[xvar], df[yvar]*d2m, label=label)
     plt.xlabel(xvar)
     plt.ylabel(yvar)

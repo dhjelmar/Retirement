@@ -18,6 +18,7 @@ roth_initial    = 5E5    # starting value of Roth IRA
 spending        = 1E5    # starting amount of planned spending to be increased with inflation
 start           = 2025   # start year for evaluation; need to include 2 years of income before start for medicare cost
 marr            = 0.07   # minimum acceptable rate of return
+roi_savings     = 0.
 roi             = marr   # return on investment used to increase IRA value with time
 inflation       = 0.0215
 heir_yob        = 1996   # heir year of birth; used to determine RMDs
