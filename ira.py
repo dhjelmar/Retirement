@@ -60,11 +60,12 @@ else:
 scenario = []
 summary = []
 #max_taxables = [1E9, 500000, 395000, 350000, 300000, 250000, 207000, 150000, 97000]
-max_taxables = [395000, 350000, 300000, 250000, 207000, 97000]
+max_taxables = [395000, 350000, 323200, 300000, 250000, 207000, 97000]
+# 395k is federal max for 24%; 323.2k is max for 6.85% 
 #max_taxables = [300000]
 os.makedirs('output', exist_ok=True)
 for i,max_taxable in enumerate(max_taxables):
-    scenario.append(my.scenario(spending, max_taxable, marr, roi, roi_savings, inflation, 
+    scenario.append(my.scenario('scenario'+str(i), spending, max_taxable, marr, roi, roi_savings, inflation, 
                                 start, year, age,
                                 income, ira_initial, roth_initial, savings_initial,
                                 heir_yob, heir_income, heir_factor, 
@@ -82,13 +83,23 @@ d2m = 1/1E6
 dfsum
 
 #%%
-#my.plotout(yvar='cumexpenses')   # Taxes, Medicare, and Spending
-#my.plotout(yvar='taxable')       # taxable income
-#my.plotout(yvar='assets')        # savings + Roth + discoutned IRA for 24% taxes
-#my.plotout(yvar='assets_constant_dollars') # assets adjusted to today's dollars (w/ 24% tax assumption)
-#my.plotout(yvar='PV')            # present value of distributions + assets (w/ 24% tax assumption)
-my.plotout(scenario, yvar='assets')       # present value of estate (uses heir income for tax assumption)
+my.plotout(scenario, yvar='assets')
 my.plotout(scenario, yvar='assets_cd')
+my.plotout(scenario, yvar='assets_cd', xlim=[80,100], ylim=[4.5,7.5])
+
+#%%
+yvar = 'fedrate'
+yvar = 'effective_rate'
+my.plotout(scenario, yvar=yvar)
+my.plotout(scenario, yvar=yvar, legend_below=True)
+my.plotout([scenario[i] for i in [0,1,2,3]], yvar=yvar, legend_below=True)
+
+#%% plot subset
+my.plotout([scenario[i] for i in [0,2,3,4,5]], yvar='assets_cd')
+
+#%%
+for obj in scenario:
+    obj.plot(yvar=['fedrate', 'fedrate_lcg', 'staterate'])
 
 #%%
 i = 0
@@ -101,11 +112,16 @@ print('savings_initial =',round(scenario[i].savings_initial))
 print('roth_initial    =',round(scenario[i].roth_initial))
 print('ira_initial     =',round(scenario[i].ira_initial))
 cols = ['year','age','income','ira_out','ira_convert','rmd',
-        'savings','roth','ira','assets','assets_cd','PV','PVestate',
+        'savings','roth','ira','assets','assets_cd',
         'taxable','federal','state','medicare','fedrate']
 df = scenario[i].df.copy()
 df[cols]
+
 #%%
-print(scenario[0].savings.history().to_string())
+my.printall(scenario[3].savings.history())
 
 # %%
+scenario[3].df[cols].head(10)
+#%%
+scenario[3].check_tax.head(10)
+#%%

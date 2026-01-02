@@ -36,10 +36,10 @@ class account():
         balance = self.balance
         amount = rate * self.balance
         self.balance = self.balance + amount
-        if name=='savings':
-            # year 2026 balance coming into function is not right
-            new_balance = self.balance
-            breakpoint()
+        #if name=='savings':
+        #    # year 2026 balance coming into function is not right
+        #    new_balance = self.balance
+        #    breakpoint()
         self.history_update(year, amount=amount, description='growth', note='rate='+str(rate))
 
     def history_update(self, year, amount, description, note=''):

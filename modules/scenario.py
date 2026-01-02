@@ -23,12 +23,13 @@ class scenario():
     heir_factor = factor to use for RMD calculation; 'min' uses IRS single life expectancy table
     '''
     
-    def __init__(self, spending, max_taxable, marr, roi, roi_savings, inflation, 
+    def __init__(self, name, spending, max_taxable, marr, roi, roi_savings, inflation, 
                  start, year, age,
                  income, ira_initial, roth_initial, savings_initial,
                  heir_yob, heir_income, heir_factor, taxes=True, medicare=True):
 
         # expose input to self
+        self.name = name
         self.spending=spending
         self.max_taxable=max_taxable
         self.marr=marr
@@ -59,6 +60,7 @@ class scenario():
         rmd = []
         ira_convert = []
         mylist = []
+        check_tax = []
 
         # initialize account objects
         savings = my.account('savings', year[0], deposit=savings_initial, rate=marr_real)
@@ -102,6 +104,7 @@ class scenario():
                     federal, state, fedrate, fedrate_lcg, staterate = my.tax(yr-1, inflation, taxable)
                 else:
                     federal = state = fedrate = fedrate_lcg = staterate = 0
+                effective_rate = (federal + state) / taxable
 
                 # determine RMD based on prior EOY IRA value for current year age
                 rmd.append(my.rmd(ira.balance, age[i]))
@@ -109,6 +112,9 @@ class scenario():
                 ira.withdraw(yr, rmd[i], note='RMD')
 
                 # determine how much of traditional IRA to convert to Roth or use for expenses to keep total income below max_taxable
+                if name == 'scenario3':
+                    breakpoint()
+                max_taxable = max_taxable * (1 + inflation)   # or could have done self.max_taxable*(1+inflation)**(yr-start+1)
                 if cash < max_taxable:
                     # withdraw enough above RMD to reach max_taxable
                     ira_out = min(max_taxable - cash, ira.balance)
@@ -175,14 +181,19 @@ class scenario():
                             roth.withdraw(yr, roth.balance, note='cash, savings, + Roth plus needed to pay expenses')
 
                             if ira.balance >= expenses:
-                                # take rest from IRA
-                                ira.withdraw(yr, expenses, note='cash, savings, Roth, + some IRA needed to pay expenses')
+                                # take rest from IRA plus enough to cover extra taxes on additional withdrawal (guess 31%)
+                                ira.withdraw(yr, 1.31*expenses, note='cash, savings, Roth, + some IRA needed to pay expenses')
+                                cash = cash + 1.31*expenses
 
                                 # refigure estimated taxes
                                 cumexpenses = cumexpenses - federal_est - state_est
                                 taxable = taxable + expenses
                                 federal_est, state_est, fedrate_est, fedrate_lcg_est, staterate_est = my.tax(yr, inflation, taxable)               
                                 cumexpenses = cumexpenses + federal_est + state_est 
+
+                                # pay estimated taxes
+                                cash = cash - federal_est - state_est
+                                savings.deposit(yr, cash, note='extra (overdraw) from IRA after paying taxes')
 
                             else:
                                 # insufficient funds to cover expenses
@@ -204,24 +215,20 @@ class scenario():
                 # assets in constant dollars
                 assets_cd = assets /( 1 + inflation )**(yr-start+1)
 
-                # present value of cash flow (i.e., change in asset value)
-                PV = PV + (assets - assets_last) / ( 1 + marr_real )**(yr-start+1)
-                assets_last = assets
+                ## present value of cash flow (i.e., change in asset value)
+                #PV = PV + (assets - assets_last) / ( 1 + marr_real )**(yr-start+1)
+                #assets_last = assets
 
-                # pv if add 10 year withdrawal of remaining IRA after taxes
-                PVestate_i = my.pv_estate(yr, inflation, ira.balance, roth.balance, savings.balance,
-                                          heir_income, heir_age, roi, marr, heir_factor=heir_factor)
-                PVestate = PVestate + (PVestate_i - PVestate_i_last) / ( 1 + marr_real )**(yr-start+1)
-                PVestate_i_last = PVestate_i
+                ## pv if add 10 year withdrawal of remaining IRA after taxes
+                #PVestate_i = my.pv_estate(yr, inflation, ira.balance, roth.balance, savings.balance,
+                #                          heir_income, heir_age, roi, marr, heir_factor=heir_factor)
+                #PVestate = PVestate + (PVestate_i - PVestate_i_last) / ( 1 + marr_real )**(yr-start+1)
+                #PVestate_i_last = PVestate_i
 
                 # save results
                 #if yr == 2037:
                 #    breakpoint()
-                mylist.append({'max_taxable':max_taxable,
-                            'marr':marr,
-                            'roi':roi,
-                            'inflation':inflation,
-
+                mylist.append({
                             'year':year[i],
                             'age':age[i],
                             'income':income[i],
@@ -235,8 +242,8 @@ class scenario():
 
                             'assets':round(assets),
                             'assets_cd':round(assets_cd), 
-                            'PV':round(PV),
-                            'PVestate':round(PVestate),
+                            #'PV':round(PV),
+                            #'PVestate':round(PVestate),
 
                             'taxable':round(taxable),
                             'federal':round(federal),
@@ -251,13 +258,26 @@ class scenario():
 
                             'fedrate':fedrate,
                             'fedrate_lcg':fedrate_lcg,
-                            'staterate':staterate})
+                            'staterate':staterate,
+                            'effective_rate':effective_rate})
+
+                check_tax.append({'year':year[i],
+                                  'income':income[i],
+                                  'ira_out':ira_out,
+                                  'total_income':income[i]+ira_out,
+                                  'taxable':taxable,
+                                  'max_taxable':max_taxable,
+                                  'federal':federal,
+                                  'state':state,
+                                  'effective_rate':effective_rate,
+                                  'medicare':med})
 
         # expose results to self
         self.df = pd.DataFrame(mylist)
         self.savings = savings
         self.ira = ira
         self.roth = roth
+        self.check_tax = pd.DataFrame(check_tax)
 
     def plot(self, yvar=['assets_cd','savings','roth','ira'], xvar='age', xlim='auto', ylim='auto'):
         # dollars converted to M$
