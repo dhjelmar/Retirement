@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "myproject"
+version = "0.1.0"
+requires-python = ">=3.9"
+dependencies = [
+    "matplotlib>=3.9.4",
+    "openpyxl>=3.1.5",
+    "pandas",
+]
+
+[tool.setuptools]
+packages = ["modules"]  # Only treat the 'modules' folder as code

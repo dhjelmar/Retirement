@@ -12,3 +12,6 @@ from modules.unique import unique
 
 # verification modules
 from modules.rmd import rmd_test
+
+# social security modules so can access as my.calculate_aime()
+from .social_security import calculate_aime   # from folder, import function

@@ -1,5 +1,11 @@
-__pycache__
-output
-.Rhistory
+# customization files and output
 input/config.py
 input/config.xlsx
+output
+
+# Build artifacts
+*.egg-info/
+dist/
+build/
+__pycache__/
+.Rhistory
