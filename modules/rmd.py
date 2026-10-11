@@ -4,18 +4,24 @@ import os
 rmd_uniform_life_table = pd.read_csv(os.path.join('input', 'rmd_uniform_life.csv'))
 rmd_uniform_life_table.columns = rmd_uniform_life_table.columns.str.strip()   # remove leading and trailing spaces
 
-def rmd(value, age, out='rmd', rmd_uniform_life_table=rmd_uniform_life_table):
-    if age < 73:
-        factor = 1E9
-        rmd = 0
+def rmd(value, age, out='rmd', inher=False):
+    if inher:
+        # this is an inherited IRA
+        xxxxxxxx
+
     else:
-        df = rmd_uniform_life_table
-        factor = df.loc[df.age==age,'factor'].iloc[0]
-    if out == 'factor':
-        return factor
-    else:
-        rmd = round(value / factor, 2)
-        return rmd
+        # this is the individual's IRA
+        if age < 75:
+            factor = 1E9
+            rmd = 0
+        else:
+            df = rmd_uniform_life_table
+            factor = df.loc[df.age==age,'factor'].iloc[0]
+        if out == 'factor':
+            return factor
+        else:
+            rmd = round(value / factor, 2)
+            return rmd
 
 #%%
 def rmd_test():
