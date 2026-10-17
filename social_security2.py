@@ -6,196 +6,169 @@ This is from Gemini and is still being checked
 import pandas as pd
 import matplotlib.pyplot as plt
 import math
+import os
+
+home_dir = os.path.expanduser("~")
+os.chdir(os.path.join(home_dir, 'Documents', 'GitHub', 'Retirement'))
 import modules as my
 
-# --- 0. Settings
+def find_break_even(df_early, df_delay):
+    # Calculate cumulative sums for both strategies
+    early_cum = df_early['Total_Net_Cash'].cumsum()
+    delay_cum = df_delay['Total_Net_Cash'].cumsum()
+    
+    # Find the first year where Delay overtakes Early
+    for i in range(len(early_cum)):
+        if delay_cum.iloc[i] > early_cum.iloc[i]:
+            return df_early.iloc[i]['Year'], df_early.iloc[i]['P1_Age']
+    return None, None
 
-debug = True
+import numpy_financial as npf
+def calculate_claiming_irr(df_early, df_delay):
+    # Difference in cash flow: (Delay Check - Early Check)
+    # This will be negative during the waiting period and positive after
+    cash_flow_diff = df_delay['Total_Net_Cash'] - df_early['Total_Net_Cash']
+    
+    # Calculate IRR (Annualized)
+    irr = npf.irr(cash_flow_diff.tolist())
+    return irr
 
 
-# --- 2. THE LOGIC: Individual Calculations ---
+# Example: Husband (1964) claims at 70, Wife (1968) claims at 62
+
+df = pd.read_excel('input/config_test.xlsx')
+df = pd.read_excel('input/config.xlsx')
+earnings1 = df.set_index('Year')['SSEarnings1'].to_dict()
+earnings2 = df.set_index('Year')['SSEarnings2'].to_dict()
+
+p1_birth = 1965
+p2_birth = 1964
+
+sim = my.HouseholdSimulator(p1_birth=p1_birth     , p2_birth=p2_birth,
+                            p1_earnings=earnings1 , p2_earnings=earnings2,
+                            p1_claim_age=67       , p2_claim_age=67, 
+                            p1_death=100          , p2_death=100,
+                            cola_future=0.03, ss_bend_point_growth_rate=0.02)
+
+#%%
+df = sim.calculate_for_years(2026, 2066)
+plt.plot(df.Age_p1, df.invested, label='Invested SS')
+plt.plot(df.Age_p1, df.cumulative, label='Cumulative SS')
+plt.plot(df.Age_p1, df.Net_Cash, label='Net Cash')
+plt.legend()
+
+df.head(10)
+
+#%%
+results = []
+scenarios = []
+for claim_age1 in [70]:
+    for claim_age2 in [70, 67, 62]:
+        scenarios.append({'p1_claim_age':claim_age1, 'p2_claim_age':claim_age2})
+        sim = my.HouseholdSimulator(p1_birth=p1_birth       , p2_birth=p2_birth,
+                                    p1_earnings=earnings1   , p2_earnings=earnings2,
+                                    p1_claim_age=claim_age1 , p2_claim_age=claim_age2, 
+                                    p1_death=76             , p2_death=90,
+                                    cola_future=0.03, ss_bend_point_growth_rate=0.02)
+        if not sim: break
+        df = sim.calculate_for_years(start=2026, end=2066, roi=0.05,
+                                    p1_income=0, p2_income=0, spend=0,
+                                    p1_ira=0, p2_ira=0)
+        print(f"Claim Ages: {claim_age1}, {claim_age2}; Invested: ${df['invested'].iloc[-1]:,.2f}")
+        results.append(df)
+results[0].head(5)
+
+#%%
+
+for i,scenario in enumerate(scenarios):
+    plt.plot(results[i].Age_p1, results[i].Net_Cash,
+             label='Claim Ages: ' + str(scenario['p1_claim_age']) + ', ' + str(scenario['p2_claim_age']))
+plt.legend()
+plt.ylabel('Actual Dollars')
+plt.xlabel('Age of Person 1')
+plt.title('Net Cash Each Year (Work + SS + RMDs)')
+
+#%%
+for i,scenario in enumerate(scenarios):
+    plt.plot(results[i].Age_p1, results[i].cumulative, 
+             label='Claim Ages: ' + str(scenario['p1_claim_age']) + ', ' + str(scenario['p2_claim_age']))
+plt.legend()
+plt.ylabel('Actual Dollars')
+plt.xlabel('Age of Person 1')
+plt.title('Cumulative')
+
+#%%
+for i,scenario in enumerate(scenarios):
+    plt.plot(results[i].Age_p1, results[i].invested, 
+             label='Claim Ages: ' + str(scenario['p1_claim_age']) + ', ' + str(scenario['p2_claim_age']))
+plt.legend()
+plt.ylabel('Actual Dollars')
+plt.xlabel('Age of Person 1')
+plt.title('Invested')
 
 
-if debug:
-    # example from https://www.ssa.gov/oact/progdata/retirebenefit1.html
-    df = pd.read_excel('input/config_test.xlsx', skiprows=1)
-    #df = df[1:len(df)]   # drop 2026 year since not in SS database yet
 
-    # NominalEarnings1 is for person born in 1964; aime = $5825
-    earnings1 = df.set_index('Year')['NominalEarnings1'].to_dict()
-    birth_year1 = 1964
-    aime1 = my.calculate_aime(earnings1, birth_year1)
-    print('aime1             =', f'${aime1:,.0f}', '; answer from website = $5825')
-    print('aime1 not indexed =', f'${my.calculate_aime(earnings1, birth_year1, index=False):,.0f}')
+########################################################################################
+########################################################################################
+########################################################################################
+########################################################################################
 
-    # NominalEarnings2 is for person born in 1959; aime = $11,463
-    earnings2 = df.set_index('Year')['NominalEarnings2'].to_dict()
-    birth_year2 = 1959
-    aime2 = my.calculate_aime(earnings2, birth_year2)
-    print('aime2             =', f'${aime2:,.0f}', '; answer from website = $11,463')
-    print('aime2 not indexed =', f'${my.calculate_aime(earnings2, birth_year2, index=False):,.0f}')
+#%%
+roi = 0.05
+df = pd.DataFrame(results)
+
+#%%
+
+for year in df
+        invested_cumsum = (invested_cumsum * (1 + roi)) + annual_cash_flow
+
+
+
+import matplotlib.pyplot as plt
+
+def plot_retirement_strategies(strategies_data):
+    plt.figure(figsize=(12, 6))
+    
+    for label, df in strategies_data.items():
+        # Calculate cumulative sum of net household cash
+        cumulative_cash = df['Net_Household_Cash'].cumsum()
+        plt.plot(df['Year'], cumulative_cash, label=label, linewidth=2)
+
+    plt.title('Social Security Break-Even Analysis: Cumulative Household Net Cash', fontsize=14)
+    plt.xlabel('Year', fontsize=12)
+    plt.ylabel('Cumulative Dollars (Net of Tax)', fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.legend()
+    
+    # Optional: Format Y-axis as currency
+    from matplotlib.ticker import StrMethodFormatter
+    plt.gca().yaxis.set_major_formatter(StrMethodFormatter('${x:,.0f}'))
+    
+    plt.show()
+
+# Usage Example:
+# strategies = {
+#    "Early (62/62)": df_62,
+#    "FRA (67/67)": df_67,
+#    "High-Delay (70/62)": df_70
+# }
+# plot_retirement_strategies(strategies)
+
+#%%
+
+# Create the loop
+data = [sim.calculate_for_year(y) for y in range(2026, 2026 + 40)]
+
+# Convert to DataFrame
+df = pd.DataFrame(data)
+
+# Calculate Cumulative Wealth
+df['Cumulative_Wealth'] = df['Total'].cumsum()
+
+df
 
 
 #%%
-def get_bend_points(birth_year):
-    # National Average Wage Index (AWI) Series
-    # Source: SSA.gov (AWI for 1977 is the base year for the formula)
-    awi_1977 = 9779.44
-    
-    # 1. Determine Eligibility Year (Age 62)
-    eligibility_year = birth_year + 62
-    
-    # 2. Determine Indexing Year (Eligibility - 2)
-    indexing_year = eligibility_year - 2
-    
-    if indexing_year not in AWI_TABLE:
-        return f"Data for indexing year {indexing_year} (Birth year {birth_year}) not available."
-    
-    current_awi = AWI_TABLE.get(indexing_year, 69846.57) # default 69846.57 for future
-    
-    # 3. Calculate Points using 1979 base figures ($180, $1085)
-    ratio = current_awi / awi_1977
-    
-    bp1 = round(180 * ratio)
-    bp2 = round(1085 * ratio)
-    
-    return bp1, bp2
-
-if debug:
-    print('bend points for', str(birth_year1), 'birth year used in website example =', get_bend_points(birth_year1))
-    print('bend points for', str(birth_year2), 'birth year used in website example =', get_bend_points(birth_year2))
-
-
-#%%
-def calculate_pia(aime, birth_year, claim_year, cola=0.03):
-    '''
-    Primary Insurance Amount (PIA) is the base monthly benefit a worker receives 
-    from Social Security if they start collecting at their Full Retirement Age (FRA)
-    Calculates the Base Benefit using Bend Points based on year person turns 62.
-    Adjusts pia based on claiming year.
-    '''
-
-    # 1. Get the base PIA at age 62
-    b1, b2 = get_bend_points(birth_year)
-    if aime <= b1:
-        pia = aime * 0.9
-    elif aime <= b2:
-        pia = (b1 * 0.9) + ((aime - b1) * 0.32)
-    else:
-        pia = (b1 * 0.9) + ((b2 - b1) * 0.32) + ((aime - b2) * 0.15)
-
-# 2. Apply COLA starting from the year the user turns 62
-    # COLA for year X is usually announced in Oct and applied to Dec/Jan benefits
-    cola_data = {
-        2021: 5.9,
-        2022: 8.7,
-        2023: 3.2,
-        2024: 2.5,  # 2025 per Gemini but 2024 per social security example
-        2025: 2.8,  # Projected/Future
-    }
-    
-    eligibility_year = birth_year + 62
-    
-    # Iterate from eligibility year up to the year before claiming
-    # (Since COLA is applied to the previous year's benefit)
-    current_year = eligibility_year
-    while current_year < claim_year:
-        breakpoint()
-        cola_rate = cola_data.get(current_year, cola) / 100 # Default input "cola" for future
-        print('year=',current_year,'; cola=',cola_rate)
-        pia = pia * (1 + cola_rate)
-        
-        # SSA Rule: After each COLA increase, the new PIA is rounded to the lower dime
-        pia = math.floor(pia * 10) / 10
-        current_year += 1
-
-    return math.floor(pia * 10) / 10 # SSA rounds to the dime
-
-if debug:
-    claim_year1 = 2026
-    claim_year2 = 2026
-    claim_age1 = claim_year1 - birth_year1
-    claim_age2 = claim_year2 - birth_year2
-    pia1 = calculate_pia(aime1, birth_year1, claim_year1)
-    pia2 = calculate_pia(aime2, birth_year2, claim_year2)
-    print('pia1 =', pia1, '; website example is $2609.8')
-    print('pia2 =', pia2, '; website example is $4152.4 which is nearly identical')
-
-#%%
-# --- 3. THE ENGINE: Household Simulation ---
-
-class HouseholdSimulator:
-    def __init__(self, p1, p2, cola):
-        self.p1 = p1
-        self.p2 = p2
-        self.p1['claim_year'] = p1['birth_year'] + p1['claim_age']
-        self.p2['claim_year'] = p2['birth_year'] + p2['claim_age']
-        self.cola = cola
-
-    def run(self):
-        """Simulates household benefits for two different people."""
-        # Calculate AIME & PIA for each
-        aime1 = calculate_aime(self.p1['earnings'], self.p1['birth_year'])
-        aime2 = calculate_aime(self.p2['earnings'], self.p2['birth_year'])
-
-        # set aime to 0 if claim age does not make sense (meaning no claim)
-        if ( self.p1['claim_age'] <= 0 ) | ( self.p1['claim_age'] > 1000 ):
-            aime1 = 0.
-        if ( self.p2['claim_age'] <= 0 ) | ( self.p2['claim_age'] > 1000 ):
-            aime2 = 0.
-
-        pia1 = calculate_pia(aime1, self.p1['birth_year'], self.p1['claim_year'], self.cola)
-        pia2 = calculate_pia(aime2, self.p2['birth_year'], self.p2['claim_year'], self.cola)
-        
-        # Identify high vs low earner for spousal logic
-        if pia1 >= pia2:
-            pia_high, pia_low = pia1, pia2
-            claim_age_high, claim_age_low = self.p1['claim_age'], self.p2['claim_age']
-        else:
-            pia_high, pia_low = pia2, pia1
-            claim_age_high, claim_age_low = self.p2['claim_age'], self.p1['claim_age']
-
-        # Calculate checks
-        check_high = pia_high * self.get_reduction(claim_age_high)
-        
-        # Low earner: Own Reduced + Reduced Spousal Top-up
-        l_own_reduced = pia_low * self.get_reduction(claim_age_low)
-        spousal_limit = pia_high * 0.50
-        excess_base = max(0, spousal_limit - pia_low)
-        topup = excess_base * self.get_reduction(claim_age_low, is_spousal=True)
-        check_low = l_own_reduced + topup
-
-        return {
-            "Total Monthly": round(check_high + check_low, 2),
-            "High Earner Check": round(check_high, 2),
-            "Low Earner Check": round(check_low, 2)
-        }
- 
-    def get_reduction(self, claim_age, fra=67, is_spousal=False):
-        """Standard SSA reduction for early claiming."""
-        m_early = max(0, (fra - claim_age) * 12)
-        if m_early == 0: return 1.0
-        if is_spousal:
-            # Spousal reduction is steeper
-            red = min(36, m_early) * (25/3600) + max(0, m_early - 36) * (5/1200)
-        else:
-            red = min(36, m_early) * (5/900) + max(0, m_early - 36) * (5/1200)
-        return 1 - red
-
-
-#%%
-husband = {'birth_year' : birth_year1, 
-           'claim_age'  : claim_age1, 
-           'earnings'   : earnings1}
-claim_age2_use = 3000
-wife    = {'birth_year' : birth_year2, 
-           'claim_age'  : claim_age2_use, 
-           'earnings'   : earnings2}
-
-cola = 0.02   # future cola                      change above to use as decimal instead of % and check usage
-sim = HouseholdSimulator(husband, wife, cola)
-results = sim.run()
-
 print(f"Household Monthly: ${results['Total Monthly']:,}")
 
 
@@ -259,9 +232,9 @@ def simulate_household_wealth(p1_data, p2_data, p1_death=85, p2_death=95, roi=0.
 
 df = pd.read_excel('input/config.xlsx')
 earnings = df.set_index('Work Year')['Taxed Medicare Earnings'].to_dict()
-aime = calculate_aime(earnings, 1965)
+aime = my.calculate_aime(earnings, 1965)
 
-pia = calculate_pia(aime)
+pia = my.calculate_base_pia(aime)
 
 #%%
 husband = {'birth_year': 1964, 

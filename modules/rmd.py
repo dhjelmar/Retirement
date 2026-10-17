@@ -1,28 +1,44 @@
 #%%
 import pandas as pd
 import os
-rmd_uniform_life_table = pd.read_csv(os.path.join('input', 'rmd_uniform_life.csv'))
-rmd_uniform_life_table.columns = rmd_uniform_life_table.columns.str.strip()   # remove leading and trailing spaces
 
-def rmd(value, age, out='rmd', inher=False):
-    if inher:
-        # this is an inherited IRA
-        xxxxxxxx
+uniform_life_table = pd.read_csv(os.path.join('input', 'rmd_uniform_life.csv'))
+uniform_life_table.columns = uniform_life_table.columns.str.strip()   # remove leading and trailing spaces
 
-    else:
+single_life_table = pd.read_csv(os.path.join('input', 'rmd_single_life_expectancy.csv'))
+single_life_table.columns = single_life_table.columns.str.strip()   # remove leading and trailing spaces
+
+def rmd(value, age, out='rmd', option=1):
+    # option = 1 = individual's own IRA (default)
+    #        = 2 = inherited IRA by an eligible dependent
+    #        = 3+ not programmed
+    if option == 1:
         # this is the individual's IRA
         if age < 75:
             factor = 1E9
             rmd = 0
         else:
-            df = rmd_uniform_life_table
+            df = uniform_life_table
             factor = df.loc[df.age==age,'factor'].iloc[0]
-        if out == 'factor':
-            return factor
-        else:
-            rmd = round(value / factor, 2)
-            return rmd
 
+    elif option == 2:
+        # This is an inherited IRA by an eligible dependent for RMDs started prior to xxxxx.
+        # Distributions spread over single life expectancy of dependent based on age
+        # of dependent in calendar year following year of death.
+        df = single_life_table
+        factor = df.loc[df.age==age,'factor'].iloc[0]
+        
+    else:
+        # not programmed
+        return 'Error: Selected option not programmed'
+
+    if out == 'factor':
+        return factor
+    else:
+        rmd = round(value / factor, 2)
+        return rmd
+    
+    
 #%%
 def rmd_test():
 

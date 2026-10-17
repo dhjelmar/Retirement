@@ -71,6 +71,7 @@ def taxcalc(income, start, rate):
             tax = tax + bin * rate[i]
             remaining = remaining - bin
         else:
+            #breakpoint()
             tax = tax + remaining * rate[i]
             remaining = 0
             return tax, rate[i]
@@ -93,7 +94,34 @@ def tax_test(year=2030, inflation=0.025):
 
 #tax_test()
 #%%
-federal, state, fedrate, fedrate_lcg, staterate = tax(2026, inflation=0.025, income=133000, lcg=0, printit=True)
+#federal, state, fedrate, fedrate_lcg, staterate = tax(2026, inflation=0.025, income=133000, lcg=0, printit=True)
 #federal, state, fedrate, fedrate_lcg, staterate = tax(2026, inflation=0.025, income=0, lcg=10000, printit=True)
 #federal, state, fedrate, fedrate_lcg, staterate = tax(2026, inflation=0.025, income=100000, lcg=10000, printit=True)
+#%%
+# income_orig = 280000.
+# income = income_orig
+# federal, state, fedrate, fedrate_lcg, staterate = tax(2026, inflation=0., income=income, lcg=0, printit=True)
+# left1 = income - federal - state
+# print('left after taxes = $',left1)
+
+# print()
+# extra = 10000.
+# print('How much extra needs to be take out to cover taxes on an extra $',extra,'?')
+# # extra income expected to be needed to also cover taxes
+# extra_incl_taxes  = extra / ( 1 - fedrate - staterate )
+# income_expected = income_orig + extra_incl_taxes
+# #        orig income + extra + more for taxes on extra
+# income = income_expected
+# federal, state, fedrate, fedrate_lcg, staterate = tax(2026, inflation=0., income=income, lcg=0, printit=True)
+# left2 = income - extra - federal - state
+# print('left after taxes and spend extra = $',left2)
+
+# print()
+# print('Difference: left2 - left1 = $',left2-left1)
+
+# print()
+# print('Extra income needed                              = $', round(extra,0))
+# print('Total income needed to also cover additional tax = $', round(extra_incl_taxes,0))
+# print('Marginal tax rate on extra                       = ' , (fedrate+staterate)*100, '%')
+# print('Extra expected to cover tax                      = ' , round((extra_incl_taxes/extra-1) * 100,1), '%')
 #%%

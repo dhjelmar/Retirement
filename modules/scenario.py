@@ -26,7 +26,8 @@ class scenario():
     def __init__(self, name, spending, max_taxable, marr, roi, roi_savings, inflation, 
                  start, year, age,
                  income, ira_initial, roth_initial, savings_initial,
-                 heir_yob, heir_income, heir_factor, taxes=True, medicare=True):
+                 heir_yob, heir_income, heir_factor, taxes=True, medicare=True,
+                 debug=False):
 
         # expose input to self
         self.name = name

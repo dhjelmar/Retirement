@@ -2,12 +2,14 @@
 import pandas as pd
 import modules as my
 import numpy as np
+import matplotlib.pyplot as plt
 
 # %%
 # read IRA, pension, and SS PIA data
 
 # drop any rows with missing 'Value' and only keep rows with D or E in 'Owner'
-df_orig = pd.read_excel('../../retirement.xlsx', sheet_name='accounts')
+df_orig = pd.read_excel(os.path.join('input', 'retirement.xlsx'), sheet_name='accounts')
+
 df = df_orig.dropna(subset=['Value']).copy()
 df = df[df.Owner.str.contains("D|E", na=False)]
 
@@ -28,9 +30,9 @@ accounts.loc[mask,'Type'] = 'IRA_D'
 mask = (accounts.Owner=='E')&(accounts.Type=='IRA')
 accounts.loc[mask, 'Type'] = 'IRA_E'
 
+#%%
 #pd.pivot_table(df, values='Value', index='Type', columns='Owner')
-#df = pd.pivot_table(df, values='Value', index=['Owner','Type'])
-accounts = pd.pivot_table(accounts, values='Value', index='Type')
+accounts = pd.pivot_table(accounts, values='Value', index='Type', aggfunc='sum')
 # flatten index
 accounts = accounts.reset_index()
 
@@ -39,7 +41,9 @@ print('pension: D=',pension_d,' ; D=',pension_e)
 print('SS PIA : D=',pia_d    ,' ; E=',pia_e)
 print()
 print('Accounts')
-accounts
+print(accounts)
+print()
+print('Total value of all accounts =', accounts.Value.sum())
 
 
 #%%
@@ -70,6 +74,11 @@ print(single_row_df)
 # Using the following, it maintains real as real and integer as integer
 #status = single_row_df.iloc[0].to_dict()
 status = single_row_df.to_dict(orient='records')[0]
+status['Total'] = status['HYS']   + status['Invest'] + status['Roth']     + \
+                  status['IRA_D'] + status['IRA_E']  + status['InherIRA']
+# Sum portfolio value with a 30% hit for anything in IRA
+status['Total_Reduced'] = status['HYS']   + status['Invest'] + status['Roth']     + \
+                          (status['IRA_D'] + status['IRA_E']  + status['InherIRA'])*0.7
 print(status)
 
 #############################################################
@@ -77,8 +86,9 @@ print(status)
 # scenario
 
 def scenario(ss_start_e, ss_start_d, max_income, 
-             spend, status, inflation=0.02, num_years=10):
+             spend, status, growth_rates, inflation=0.02, num_years=10):
     # Iterate across multiple years and modify account values
+    status = status.copy()
     history = []
     # Append starting values to history list
     history.append(status.copy())
@@ -120,7 +130,7 @@ def scenario(ss_start_e, ss_start_d, max_income,
         IRAout_D = my.rmd(status['IRA_D'], status['Age_D'], out='rmd')
         IRAout_E = my.rmd(status['IRA_E'], status['Age_E'], out='rmd')
         # need to fix inherIRA RMD
-        IRAout_Einher = my.rmd(status['InherIRA'], status['Age_E'], out='rmd')
+        IRAout_Einher = my.rmd(status['InherIRA'], status['Age_E'], out='rmd', option=2)
         status['IRA_D'] -= IRAout_D
         status['IRA_E'] -= IRAout_E
         status['InherIRA'] -= IRAout_Einher
@@ -167,6 +177,49 @@ def scenario(ss_start_e, ss_start_d, max_income,
         spend = spend * (1+inflation)
         status['HYS'] = status['HYS'] - (federal + state + spend)
 
+        # take from Invest account if savings is too low
+        # to cover taxes on extra IRA withdrawal plus a $50k buffer
+        if ( status['HYS'] < IRAout_extra * 0.30 + 50000. ):
+            shift = min( status['Invest'], 50000. - status['HYS'] )
+            status['Invest'] -= shift
+            status['HYS'] += shift
+
+            if ( status['HYS'] < IRAout_extra / (1 - fedrate - staterate) ):
+                # if still too low savings, take from Roth and put $50k buffer into HYS
+                shift = min( status['Roth'], 50000. - status['HYS'] )
+                status['Roth'] -= shift
+                status['HYS'] += shift
+
+        # add to savings from IRA if negative
+        # increase what is needed for taxes
+        IRAout_extra_plus = 0.
+        savings_strong = True
+        if status['HYS'] < 0:
+            breakpoint()
+            # the following assumes the additional withdrawal does not shift tax brackets
+            need = abs(status['HYS']) / (1 - fedrate - staterate)
+
+            shift = min( status['IRA_E'], need )
+            status['IRA_E'] -= shift
+            status['HYS'] += shift
+            IRAout_extra_plus = shift
+
+            if status['HYS'] < 0:
+                # savings still < 0 so take from IRA_D
+                need = need - IRAout_extra_plus
+                shift = min( status['IRA_D'], need )
+                status['IRA_D'] -= shift
+                status['HYS'] += shift
+                IRAout_extra_plus += shift
+
+            # refigure taxes
+            income = income + IRAout_extra_plus
+            status['HYS'] = status['HYS'] + (federal + state)
+            federal, state, fedrate, fedrate_lcg, staterate = my.tax(year, inflation, income, lcg=0, printit=False)
+            status['HYS'] = status['HYS'] - (federal + state)
+
+            savings_strong = False
+
         # If took out extra from IRA, decide whether can convert.
         # Keep 5 years expense needs in savings if income not sufficient.
         extra = pension_ss_rmd - (federal + state + spend)
@@ -174,7 +227,7 @@ def scenario(ss_start_e, ss_start_d, max_income,
             min_savings = 0.
         else:
             min_savings = 5 * abs(extra)
-        if ( IRAout_extra>0 )&( status['HYS'] > min_savings ):
+        if ( IRAout_extra>0 )&( status['HYS'] > min_savings )&( savings_strong ):
                 # Convert entire amount to Roth from what was put into savings.
                 # Do not worry about whose Roth because it does not matter for this purpose.
                 status['Roth'] =  status['Roth'] + IRAout_extra
@@ -184,36 +237,93 @@ def scenario(ss_start_e, ss_start_d, max_income,
         for account, rate in growth_rates.items():
             status[account] = round(status[account] * (1 + rate), 2)
 
+        # add tax rates to dictionary
+        status['Fed_Rate'] = fedrate
+        status['State_Rate'] = staterate
+
+        # Sum portfolio value
+        status['Total'] = status['HYS']   + status['Invest'] + status['Roth']     + \
+                          status['IRA_D'] + status['IRA_E']  + status['InherIRA']
+
+        # Sum portfolio value with a 30% hit for anything in IRA
+        status['Total_Reduced'] = status['HYS']   + status['Invest'] + status['Roth']     + \
+                                  (status['IRA_D'] + status['IRA_E']  + status['InherIRA'])*0.7
+
         # Append a copy of the current state to history list
         history.append(status.copy())
 
     # Convert back to a multi-year DataFrame and change NaN in starting year to 0
     df = pd.DataFrame(history)
     #df = df.fillna(0)
+
+    # Move column 'Total' to the end
+    df['Total'] = df.pop('Total')
+
     return df
 
 #%%
-inflation = 0.
-marr = 0.
+#######################################################################################
 
-# Example growth rates per account type
+marr = 0.05
+inflation = 0.
+spend = 200000.
+title = 'marr = ' + str(marr)
+# dlh: need to check that growt_rates are applied correctly
 growth_rates = {
     'HYS': 0.0,
-    'IRA_D': 0.07,
-    'IRA_E': 0.07,
-    'InherIRA': 0.07,
-    'Invest': 0.07,
-    'Roth': 0.07
+    'IRA_D': marr,
+    'IRA_E': marr,
+    'InherIRA': marr,
+    'Invest': marr,
+    'Roth': marr
 }
 
-#%%
-df = scenario(ss_start_e=62, ss_start_d=70, max_income=300000., 
-              spend=200000., status=status, inflation=0.02, num_years=20)
-print(df)
+years = 100 - 62
+ 
+df1_lab = 'SS_E=62, SS_D=70, max_income=0.'
+df1 = scenario(ss_start_e=62, ss_start_d=70, max_income=0.*300000., 
+               spend=spend, status=status, growth_rates=growth_rates, 
+               inflation=inflation, num_years=years)
+print(df1)
 
-#%%
-df2 = scenario(ss_start_e=67, ss_start_d=70, max_income=300000., 
-               spend=200000., status=status, inflation=0.02, num_years=10)
-df3 = scenario(ss_start_e=70, ss_start_d=70, max_income=300000., 
-               spend=200000., status=status, inflation=0.02, num_years=10)
-#%%
+df2_lab = 'SS_E=62, SS_D=70, max_income=300,000.'
+df2 = scenario(ss_start_e=62, ss_start_d=70, max_income=300000., 
+               spend=spend, status=status, growth_rates=growth_rates, 
+               inflation=inflation, num_years=years)
+
+df3_lab = 'SS_E=67, SS_D=70, max_income=300,000.'
+df3 = scenario(ss_start_e=67, ss_start_d=70, max_income=300000., 
+               spend=spend, status=status, growth_rates=growth_rates, 
+               inflation=inflation, num_years=years)
+
+df4_lab = 'SS_E=70, SS_D=70, max_income=300,000.'
+df4 = scenario(ss_start_e=70, ss_start_d=70, max_income=300000., 
+               spend=spend, status=status, growth_rates=growth_rates, 
+               inflation=inflation, num_years=years)
+
+df5_lab = 'SS_E=70, SS_D=70, max_income=0.'
+df5 = scenario(ss_start_e=70, ss_start_d=70, max_income=0., 
+               spend=spend, status=status, growth_rates=growth_rates, 
+               inflation=inflation, num_years=years)
+
+print('Totals: df1 =', f"${df1.Total.iloc[-1]:,.0f}")
+print('        df2 =', f"${df2.Total.iloc[-1]:,.0f}")
+print('        df3 =', f"${df3.Total.iloc[-1]:,.0f}")
+print('        df4 =', f"${df4.Total.iloc[-1]:,.0f}")
+print('        df5 =', f"${df5.Total.iloc[-1]:,.0f}")
+
+xvar = 'Year'
+xvar = 'Age_E'
+yvar = 'Total'
+yvar = 'Total_Reduced'
+d2m = 1/1E6
+plt.plot(df1[xvar], df1[yvar]*d2m, label=df1_lab)
+plt.plot(df2[xvar], df2[yvar]*d2m, label=df2_lab)
+plt.plot(df3[xvar], df3[yvar]*d2m, label=df3_lab)
+plt.plot(df4[xvar], df4[yvar]*d2m, label=df4_lab)
+plt.plot(df5[xvar], df5[yvar]*d2m, label=df5_lab)
+plt.title(title)
+plt.xlabel(xvar)
+plt.ylabel(yvar)
+plt.legend()
+# %%

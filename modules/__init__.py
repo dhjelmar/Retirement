@@ -15,3 +15,7 @@ from modules.rmd import rmd_test
 
 # social security modules so can access as my.calculate_aime()
 from .social_security import calculate_aime   # from folder, import function
+from .social_security import get_bend_points
+from .social_security import calculate_base_pia
+from .social_security import pia_adjusted
+from .social_security import HouseholdSimulator

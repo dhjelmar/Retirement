@@ -84,6 +84,8 @@ checki = checkit(test[i].df, expected_savings, expected_roth, expected_ira, expe
 check.append({'test':i, 'pass':checki, 'title':title})
 test[i].df[cols]
 
+
+
 #%%
 # test
 i = 1
@@ -162,11 +164,12 @@ title = 'same but added marr=roi=7% for IRA and Roth and 5% for savings'
 print('test', i, '; title:', title)
 roi=0.07
 marr=0.07
-roi_savings = 0.05
+roi_savings = 0.07
 test.append(my.scenario('test'+str(i), spending, max_taxable, marr, roi, roi_savings, inflation, 
                             start, year, age,
                             income, ira_initial, roth_initial, savings_initial,
-                            heir_yob, heir_income, heir_factor, taxes=taxes, medicare=medicare))
+                            heir_yob, heir_income, heir_factor, taxes=taxes, medicare=medicare,
+                            debug=True))
 # expectation
 expected_savings = 0
 expected_roth    = 0

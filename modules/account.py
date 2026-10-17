@@ -4,10 +4,11 @@ class account():
     '''
     
     '''
-    def __init__(self, name, year, deposit=0, rate=0):
+    def __init__(self, name, year, deposit=0, rate=0, debug=False):
         self.name = name
         self.balance = deposit
         self.rate = rate     # interest rate
+        self.debug = False
         self.warning = 'none'
         self.history_dict = {'year':[year],
                         'balance':[self.balance],
@@ -19,28 +20,33 @@ class account():
         
     def deposit(self, year, amount, note=''):
         self.balance = self.balance + amount
-        self.history_update(year,amount,description='deposit', note=note)
         if self.balance < 0:
+            # this is only needed if amount was negative (and should have been a call to withdraw)
             self.warning = 'overdrawn'
-            self.history_update(year,amount,description='deposit', note='OVERDRAWN')
+            if note == '':
+                note = 'OVERDRAWN'
+            else:
+                note = note + ': OVERDRAWN'
+        self.history_update(year,amount,description='deposit', note=note)
 
     def withdraw(self, year, amount, note=''):
         self.balance = self.balance - amount
-        self.history_update(year,amount,description='withdrawal', note=note)
         if self.balance < 0:
             self.warning = 'overdrawn'
-            self.history_update(year,amount,description='withdrawal', note='OVERDRAWN')
+            if note == '':
+                note = 'OVERDRAWN'
+            else:
+                note = note + ': OVERDRAWN'
+        self.history_update(year,amount,description='withdrawal', note=note)
 
     def growth(self, year, rate, note=''):
-        name = self.name
-        balance = self.balance
         amount = rate * self.balance
         self.balance = self.balance + amount
-        #if name=='savings':
-        #    # year 2026 balance coming into function is not right
-        #    new_balance = self.balance
-        #    breakpoint()
         self.history_update(year, amount=amount, description='growth', note='rate='+str(rate))
+        if (self.name=='savings')&(self.debug==True):
+            # year 2026 balance coming into function is not right
+            new_balance = self.balance
+            breakpoint()
 
     def history_update(self, year, amount, description, note=''):
         # updates self.history and self.eoy

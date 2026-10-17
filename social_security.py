@@ -2,97 +2,7 @@
 import math
 import pandas as pd
 import matplotlib.pyplot as plt
-
-def calculate_aime(earnings_history, birth_year):
-    """
-    Calculates AIME by indexing historical earnings to the age-60 year.
-    
-    Input:
-        earnings_history: Dict of {year: amount} or List of nominal annual earnings.
-        birth_year:      The year the worker was born.
-    """
-    # 1. Define the Indexing Year (the year the worker turns 60)
-    indexing_year = birth_year + 60
-    
-    # 2. National Average Wage Index (AWI) Table
-    awi_table = {
-        2026: 72700.00,
-        2025: 71200.00,
-        2024: 69846.57,
-        2023: 66621.80,
-        2022: 63795.13,
-        2021: 60575.07,
-        2020: 55628.60,
-        2019: 54099.99,
-        2018: 52145.80,
-        2017: 50321.89,
-        2016: 48642.15,
-        2015: 48098.63,
-        2014: 46481.52,
-        2013: 44888.16,
-        2012: 44321.67,
-        2011: 42979.61,
-        2010: 41673.83,
-        2009: 40711.61,
-        2008: 41334.97,
-        2007: 40405.48,
-        2006: 38651.41,
-        2005: 36952.94,
-        2004: 35648.55,
-        2003: 34064.95,
-        2002: 33252.09,
-        2001: 32921.92,
-        2000: 32154.82,
-        1999: 30469.84,
-        1998: 28861.44,
-        1997: 27426.00,
-        1996: 25913.90,
-        1995: 24705.66,
-        1994: 23753.53,
-        1993: 23132.67,
-        1992: 22935.42,
-        1991: 21811.60,
-        1990: 21027.98,
-        1989: 20099.55,
-        1988: 19334.04,
-        1987: 18426.51,
-        1986: 17321.82,
-        1985: 16822.51,
-        1984: 16135.07,
-        1983: 15239.24,
-        1982: 14531.34,
-        1981: 13773.10,
-        1980: 12513.46
-    }    
-    # Get the AWI for the indexing year (fallback to 2024 if future year missing)
-    base_awi = awi_table.get(indexing_year, 69846.57)
-    
-    indexed_earnings = []
-
-    # 3. Handle Dictionary or List inputs
-    if isinstance(earnings_history, dict):
-        for year, amount in earnings_history.items():
-            if year < indexing_year:
-                # Use a nearby year if the exact year isn't in our simplified table
-                closest_year = min(awi_table.keys(), key=lambda x: abs(x - year))
-                factor = base_awi / awi_table[closest_year]
-                indexed_earnings.append(amount * factor)
-            else:
-                # No indexing for earnings at age 60, 61, or 62+
-                indexed_earnings.append(amount)
-    else:
-        # Fallback: if user just provides a list, assume they are already indexed
-        indexed_earnings = earnings_history
-
-    # 4. Select top 35 years and pad with zeros if necessary
-    top_35 = sorted(indexed_earnings, reverse=True)[:35]
-    while len(top_35) < 35:
-        top_35.append(0)
-        
-    # 5. Divide by 420 (number of months in 35 years)
-    aime = sum(top_35) / 420
-    
-    return round(aime, 2)
+import modules as my
 
 def calculate_spousal_benefit(spouse_pia, worker_pia, spouse_claim_age, spouse_fra=67):
     """
@@ -118,21 +28,6 @@ def calculate_spousal_benefit(spouse_pia, worker_pia, spouse_claim_age, spouse_f
     final_excess_spousal = excess_spousal_base * reduction_factor
     
     return round(final_excess_spousal, 2)
-
-
-def calculate_pia(aime):
-    # current breakpoints in earnings
-    b1, b2 = 1286, 7749   
-
-    if aime <= b1:
-        pia = aime * 0.9
-    elif aime <= b2:
-        pia = (b1 * 0.9) + ((aime - b1) * 0.32)
-    else:
-        pia = (b1 * 0.9) + ((b2 - b1) * 0.32) + ((aime - b2) * 0.15)
-
-    return pia
-
 
 def social_security(earnings_history, claim_age, claim_month=1, roi=0.05, inflation=0.03, cola=0.026, fra=67, death_age=95):
     """
@@ -167,7 +62,7 @@ def social_security(earnings_history, claim_age, claim_month=1, roi=0.05, inflat
         
     # 1. Calculate AIME & Base PIA
     if isinstance(earnings_history, dict):
-        aime = calculate_aime(earnings_history, birth_year)
+        aime = my.calculate_aime(earnings_history, birth_year)
     
     elif isinstance(earnings_history, list):
         # this is a simplification of the above that will understimate benefit
@@ -178,7 +73,7 @@ def social_security(earnings_history, claim_age, claim_month=1, roi=0.05, inflat
         # also a simplification
         aime = earnings_history * 35 / 420
     
-    pia = calculate_pia(aime)
+    pia = my.calculate_base_pia(aime)
         
     # 2. Age Adjustments
     if claim_age == fra:
@@ -233,31 +128,74 @@ def social_security(earnings_history, claim_age, claim_month=1, roi=0.05, inflat
 #%%
 
 # --- Setup ---
-birth_year = 1964
-worker_earnings = {1990: 50000, 2010: 80000, 2024: 100000} # Simplified
-spouse_earnings = {1995: 20000, 2005: 25000} # Lower earner
+p1_birth = 1965
+p2_birth = 1964
+p1_earnings = {1990: 50000, 2010: 80000, 2024: 100000} # Simplified
+p2_earnings = {1995: 20000, 2005: 25000} # Lower earner
 
 # 1. Calculate PIAs for both
-worker_aime = calculate_aime(worker_earnings, birth_year)
-worker_pia = calculate_pia(worker_aime) # Using your bend point logic
+p1_aime = my.calculate_aime(p1_earnings, p1_birth)
+p1_pia = my.calculate_base_pia(p1_aime, p1_birth) # Using your bend point logic
 
-spouse_aime = calculate_aime(spouse_earnings, birth_year)
-spouse_pia = calculate_pia(spouse_aime)
+p2_aime = my.calculate_aime(p2_earnings, p2_birth)
+p2_pia = my.calculate_base_pia(p2_aime, p2_birth)
 
 # 2. Calculate Final Spouse Check
 # Let's say the spouse claims at 62
-excess_spousal = calculate_spousal_benefit(spouse_pia, worker_pia, spouse_claim_age=62)
+excess_spousal = calculate_spousal_benefit(p2_pia, p1_pia, spouse_claim_age=62)
 
 # Spouse's check = (Their reduced retirement benefit) + (Their reduced excess spousal)
 # Note: You'd use your existing reduction logic for the spouse_pia part!
-reduced_spouse_retirement = spouse_pia * 0.70 # Simplified reduction for age 62
+reduced_spouse_retirement = p2_pia * 0.70 # Simplified reduction for age 62
 total_spouse_check = reduced_spouse_retirement + excess_spousal
 
-print(f"Spouse's Own Reduced Benefit: ${reduced_spouse_retirement:,.2f}")
-print(f"Spouse's Top-up from Worker:  ${excess_spousal:,.2f}")
-print(f"Total Monthly Spouse Check:   ${total_spouse_check:,.2f}")
+print('person 1')
+print('aime:', p1_aime)
+print('pai :', p1_pia)
+print()
+print('person 2')
+print('aime:', p2_aime)
+print('pai :', p2_pia)
+print(f"Reduced Benefit: ${reduced_spouse_retirement:,.2f}")
+print(f"Top-up from person 1:  ${excess_spousal:,.2f}")
+print(f"Total Monthly Check for person 2:   ${total_spouse_check:,.2f}")
 
+#%%
+p1_claim_age = 62
+p2_claim_age = 62
+p1_death = 100
+p2_death = 100
+cola_future = 0.03
+ss_bend_point_growth_rate = 0.02
+sim = my.HouseholdSimulator(p1_birth, p2_birth, p1_earnings, p2_earnings, 
+                            p1_claim_age, p2_claim_age, p1_death, p2_death,
+                            cola_future, ss_bend_point_growth_rate)
+print('person 1')
+print('aime    :', sim.aime1)
+print('pia base:', sim.pia_base1)
+print()
+print('person 2')
+print('aime    :', sim.aime2)
+print('pia base:', sim.pia_base2)
 
+print()
+out = sim.calculate_for_year(1964+p2_claim_age, p1_income=0, p2_income=0, spend=0, p1_ira=0, p2_ira=0)
+print(f"check_high:   ${out['Check_high']:,.2f}")
+print(f"check_low :   ${out['Check_low']:,.2f}")
+
+print()
+out = sim.calculate_for_year(1965+p1_claim_age, p1_income=0, p2_income=0, spend=0, p1_ira=0, p2_ira=0)
+print(f"check_high:   ${out['Check_high']:,.2f}")
+print(f"check_low :   ${out['Check_low']:,.2f}")
+
+out=[]
+for year in range(2026,2041):
+    out.append(sim.calculate_for_year(year, p1_income=0, p2_income=0, spend=0, p1_ira=0, p2_ira=0))
+df = pd.DataFrame(out)
+df
+
+#%%
+#print(f"Total Monthly Check for person 2:   ${sim.get_cola_adjusted_check():,.2f}")
 
 
 #%%
