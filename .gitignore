@@ -1,6 +1,7 @@
 # customization files and output
 input/config.py
 input/config.xlsx
+input/retirement.xlsx
 output
 
 # Build artifacts
